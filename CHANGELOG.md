@@ -1,5 +1,10 @@
 # Changelog — school_journal
 
+## 2026-11-01 (late)
+- PR #1 merged to `main` (squash): core schema, RLS, RPC, v_lesson_window, handle_new_user, seed, docs.
+- Live project `dtpyvyedcptdkdsowmco` had core + RPC applied by owner before merge.
+- Branch `grok/T-023-docs`: T-023 RLS test checklist, T-006 keep-alive, T-043 backup/export.
+
 ## 2026-11-01 — T-020 (Grok)
 - Added `supabase/` folder with core schema migration.
 - Enums: app_role, hw_status, exit_reason, assessment_kind.
