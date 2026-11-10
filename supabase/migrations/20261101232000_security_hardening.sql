@@ -2,11 +2,25 @@
 -- DO NOT apply to live until Claude ACCEPTED.
 -- Keeps owner AND teacher RLS policies; strips anon; blocks role self-promotion.
 
+-- ============================================================
+-- 0. Drop ALL existing public policies FIRST
+--    (they reference public.current_app_role / is_*_teacher)
+-- ============================================================
+do $$
+declare r record;
+begin
+  for r in select policyname, tablename from pg_policies where schemaname = 'public' loop
+    execute format('drop policy if exists %I on public.%I', r.policyname, r.tablename);
+  end loop;
+end $$;
+
+-- ============================================================
+-- A. Privileges: strip anon/PUBLIC
+-- ============================================================
 create schema if not exists private;
 revoke all on schema private from public, anon;
 grant usage on schema private to authenticated;
 
--- A. Privileges: strip anon/PUBLIC
 revoke all on schema public from anon, public;
 grant usage on schema public to authenticated;
 
@@ -33,8 +47,10 @@ alter default privileges in schema public revoke all on functions from anon, pub
 alter default privileges in schema public grant select, insert, update, delete on tables to authenticated;
 alter default privileges in schema public grant usage, select on sequences to authenticated;
 
--- B. profiles
-revoke insert on table public.profiles from authenticated;
+-- ============================================================
+-- B. profiles: no client INSERT/DELETE; cannot change role/id via API
+-- ============================================================
+revoke insert, delete on table public.profiles from authenticated;
 revoke update on table public.profiles from authenticated;
 grant select on table public.profiles to authenticated;
 grant update (display_name, updated_at) on table public.profiles to authenticated;
@@ -50,7 +66,9 @@ begin
     raise exception 'profiles.id cannot be changed';
   end if;
   if new.role is distinct from old.role then
-    if not exists (
+    -- SQL Editor / service role: auth.uid() is null → allow (owner admin path)
+    -- Authenticated non-owner JWT: block
+    if auth.uid() is not null and not exists (
       select 1 from public.profiles p
       where p.id = auth.uid() and p.role = 'owner'
     ) then
@@ -68,7 +86,9 @@ create trigger profiles_no_escalation
 
 revoke all on function private.prevent_profile_privilege_escalation() from public, anon, authenticated;
 
--- C. Helpers in private
+-- ============================================================
+-- C. Helpers in private (after policies dropped)
+-- ============================================================
 create or replace function private.current_app_role()
 returns public.app_role
 language sql stable security definer set search_path = ''
@@ -99,14 +119,9 @@ drop function if exists public.is_journal_teacher(uuid);
 drop function if exists public.is_class_teacher(uuid);
 drop function if exists public.is_owner();
 
-do $$
-declare r record;
-begin
-  for r in select policyname, tablename from pg_policies where schemaname = 'public' loop
-    execute format('drop policy if exists %I on public.%I', r.policyname, r.tablename);
-  end loop;
-end $$;
-
+-- ============================================================
+-- C2. Recreate policies TO authenticated (owner + teacher)
+-- ============================================================
 create policy profiles_select_own_or_owner on public.profiles for select to authenticated
   using (id = (select auth.uid()) or (select private.is_owner()));
 create policy profiles_update_own_name on public.profiles for update to authenticated
@@ -199,12 +214,26 @@ create policy assessments_delete_own_or_owner on public.assessments for delete t
   using ((select private.is_owner()) or exists (
     select 1 from public.lessons l where l.id = lesson_id and (select private.is_journal_teacher(l.journal_id))));
 
+-- ============================================================
+-- D. set_updated_at: INVOKER + search_path only (not DEFINER)
+-- ============================================================
 create or replace function public.set_updated_at()
-returns trigger language plpgsql security definer set search_path = ''
-as $$ begin new.updated_at = now(); return new; end; $$;
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
 
 create or replace function public.handle_new_user()
-returns trigger language plpgsql security definer set search_path = ''
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
 as $$
 begin
   insert into public.profiles (id, display_name, role)
@@ -227,4 +256,4 @@ grant execute on function public.save_lesson_record(
 revoke all on table public.v_lesson_window from anon, public;
 grant select on table public.v_lesson_window to authenticated;
 
-comment on schema private is 'Internal RLS helpers; not for client Data API';
+comment on schema private is 'Internal RLS helpers; not for client Data API — ensure private is NOT in Settings → API exposed schemas';
