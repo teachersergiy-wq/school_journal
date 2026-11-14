@@ -1,7 +1,7 @@
--- T-024 synthetic demo journal data
+-- T-024 synthetic demo journal data (REWORK after Claude review)
 -- ONLY fictional names («Учень NN»). Idempotent.
--- Requires: migrations applied, starter seed (class/subjects/students/marks), at least one profiles.role = 'owner'.
--- Apply in SQL Editor as service role / postgres. Do not put real UUIDs or emails in this file.
+-- Requires: migrations, starter seed, profiles.role = 'owner'.
+-- Demo lesson topics are prefixed with «[ДЕМО]» so cleanup is safe.
 
 do $$
 declare
@@ -18,6 +18,7 @@ declare
   d date;
   i int;
   student_rec record;
+  v_topic text;
 begin
   select id into v_owner from public.profiles where role = 'owner' limit 1;
   if v_owner is null then
@@ -50,23 +51,25 @@ begin
 
   for i in 1..5 loop
     d := date '2026-09-01' + (i - 1);
+    v_topic := '[ДЕМО] ' || case i
+      when 1 then 'Лінійні рівняння'
+      when 2 then 'Системи рівнянь'
+      when 3 then 'Квадратні рівняння'
+      when 4 then 'Нерівності'
+      else 'Повторення'
+    end;
 
     select id into v_lesson from public.lessons
     where journal_id = v_journal and lesson_date = d and lesson_number = 1 limit 1;
 
     if v_lesson is null then
       insert into public.lessons (journal_id, lesson_date, lesson_number, topic)
-      values (
-        v_journal, d, 1,
-        case i
-          when 1 then 'Лінійні рівняння'
-          when 2 then 'Системи рівнянь'
-          when 3 then 'Квадратні рівняння'
-          when 4 then 'Нерівності'
-          else 'Повторення'
-        end
-      )
+      values (v_journal, d, 1, v_topic)
       returning id into v_lesson;
+    else
+      update public.lessons
+      set topic = v_topic
+      where id = v_lesson and (topic is null or topic not like '[ДЕМО]%');
     end if;
 
     for student_rec in
@@ -102,6 +105,7 @@ begin
           insert into public.lesson_exits (record_id, reason)
           values (v_record, 'toilet');
         elsif student_rec.rn = 3 then
+          -- board REFUSAL only — no kind=board assessment
           insert into public.lesson_records (
             lesson_id, student_id, is_absent, homework, has_notebook, has_textbook,
             not_taking_notes, board_refused, late_minutes
@@ -113,6 +117,7 @@ begin
             values (v_record, v_mark_active) on conflict do nothing;
           end if;
         elsif student_rec.rn = 4 then
+          -- board grade via assessment only
           insert into public.lesson_records (
             lesson_id, student_id, is_absent, homework, has_notebook, has_textbook,
             not_taking_notes, board_refused, late_minutes
@@ -153,7 +158,7 @@ begin
           values (v_lesson, v_student, 10, 'thematic');
         end if;
       end if;
-      if student_rec.rn = 3 and i = 1 then
+      if student_rec.rn = 4 and i = 1 then
         if not exists (
           select 1 from public.assessments a
           where a.lesson_id = v_lesson and a.student_id = v_student and a.kind = 'board'
@@ -166,5 +171,5 @@ begin
     end loop;
   end loop;
 
-  raise notice 'T-024 seed_demo OK: journal %, 5 lessons, records for class 8-А', v_journal;
+  raise notice 'T-024 seed_demo OK: journal %, 5 [ДЕМО] lessons', v_journal;
 end $$;
