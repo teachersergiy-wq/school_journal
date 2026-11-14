@@ -10,7 +10,7 @@ CHANGED:
 - README, stack note, .env.example, .gitignore, changelog.
 
 VERIFIED:
-- npm run check passed locally: syntax checked for six JS modules; contract-field and PWA-reference checks passed.
+- npm run lint and npm run check passed locally: syntax checked for six JS modules; contract-field and PWA-reference checks passed.
 - npm run build passed locally; static dist/ generated.
 - Manifest parsed as valid JSON.
 - Local dev server smoke test returned HTTP 200 for app shell, JS, CSS, manifest, service worker and icon.
