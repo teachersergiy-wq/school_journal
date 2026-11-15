@@ -1,5 +1,6 @@
-const CACHE = 'school-journal-shell-v2';
-const SHELL = [
+/* App-shell service worker. Paths relative to registration scope (GitHub Pages subpath safe). */
+const CACHE = 'school-journal-shell-v20261115';
+const SHELL_FILES = [
   './',
   './index.html',
   './src/styles.css',
@@ -10,30 +11,50 @@ const SHELL = [
   './icon.svg'
 ];
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE).then((cache) => cache.addAll(SHELL_FILES)).then(() => self.skipWaiting())
   );
 });
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });
 
-self.addEventListener('fetch', (e) => {
-  const r = e.request;
-  if (r.method !== 'GET' || new URL(r.url).origin !== self.location.origin) return;
-  e.respondWith(
-    caches.match(r).then((hit) =>
+// Network-first for navigations and JS/CSS so updates are not stuck behind old cache
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+  if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
+
+  const dest = request.destination;
+  const networkFirst = request.mode === 'navigate' || dest === 'script' || dest === 'style';
+
+  if (networkFirst) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE).then((c) => c.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(request).then((hit) =>
       hit ||
-      fetch(r).then((response) => {
+      fetch(request).then((response) => {
         if (response.ok) {
           const copy = response.clone();
-          caches.open(CACHE).then((c) => c.put(r, copy));
+          caches.open(CACHE).then((c) => c.put(request, copy));
         }
         return response;
       })
