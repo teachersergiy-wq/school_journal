@@ -1,7 +1,7 @@
--- T-024 synthetic demo journal data (REWORK after Claude review)
--- ONLY fictional names («Учень NN»). Idempotent.
+-- T-024 synthetic demo journal data
+-- ONLY fictional names («Учень NN»). Idempotent for pure-demo journals.
 -- Requires: migrations, starter seed, profiles.role = 'owner'.
--- Demo lesson topics are prefixed with «[ДЕМО]» so cleanup is safe.
+-- Topics prefixed «[ДЕМО]». Aborts if journal already has non-demo lessons.
 
 do $$
 declare
@@ -19,6 +19,7 @@ declare
   i int;
   student_rec record;
   v_topic text;
+  v_non_demo int;
 begin
   select id into v_owner from public.profiles where role = 'owner' limit 1;
   if v_owner is null then
@@ -49,6 +50,18 @@ begin
     returning id into v_journal;
   end if;
 
+  -- Refuse to touch journals that already have real (non-demo) lessons
+  select count(*) into v_non_demo
+  from public.lessons
+  where journal_id = v_journal
+    and (topic is null or topic not like '[ДЕМО]%');
+
+  if v_non_demo > 0 then
+    raise exception
+      'T-024 seed_demo: journal already has % non-demo lesson(s). Refusing to modify real data. Use a clean journal or remove non-demo lessons first.',
+      v_non_demo;
+  end if;
+
   for i in 1..5 loop
     d := date '2026-09-01' + (i - 1);
     v_topic := '[ДЕМО] ' || case i
@@ -67,9 +80,9 @@ begin
       values (v_journal, d, 1, v_topic)
       returning id into v_lesson;
     else
-      update public.lessons
-      set topic = v_topic
-      where id = v_lesson and (topic is null or topic not like '[ДЕМО]%');
+      -- Existing lesson: never rewrite topic unless it is already a demo topic
+      -- (non-demo already blocked above; keep existing [ДЕМО] topic as-is)
+      null;
     end if;
 
     for student_rec in
@@ -105,7 +118,6 @@ begin
           insert into public.lesson_exits (record_id, reason)
           values (v_record, 'toilet');
         elsif student_rec.rn = 3 then
-          -- board REFUSAL only — no kind=board assessment
           insert into public.lesson_records (
             lesson_id, student_id, is_absent, homework, has_notebook, has_textbook,
             not_taking_notes, board_refused, late_minutes
@@ -117,7 +129,6 @@ begin
             values (v_record, v_mark_active) on conflict do nothing;
           end if;
         elsif student_rec.rn = 4 then
-          -- board grade via assessment only
           insert into public.lesson_records (
             lesson_id, student_id, is_absent, homework, has_notebook, has_textbook,
             not_taking_notes, board_refused, late_minutes
