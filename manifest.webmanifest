@@ -1,1 +1,19 @@
-{"name":"Шкільний журнал","short_name":"Журнал","description":"Мобільний класний журнал для вчителя","lang":"uk","start_url":"/","scope":"/","display":"standalone","background_color":"#f4f7f9","theme_color":"#102a43","icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
+{
+  "name": "Шкільний журнал",
+  "short_name": "Журнал",
+  "description": "Мобільний класний журнал для вчителя",
+  "lang": "uk",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7f9",
+  "theme_color": "#102a43",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
