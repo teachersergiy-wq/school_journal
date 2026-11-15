@@ -17,11 +17,15 @@ npm run dev
 
 ## Перевірка та збірка
 ```sh
-npm run check   # синтаксис JS + наявність полів контракту (не ESLint)
+npm run check   # перевірка синтаксису JavaScript і полів контракту (не ESLint)
 npm run build
+npm run check:subpath   # повна перевірка під шляхом GitHub Pages /school_journal/
 npm run preview
 ```
-Статика в `dist/`. Для перевірки підшляху GitHub Pages можна віддати `dist` як `/school_journal/` на будь-якому статичному сервері.
+Статика в `dist/`. Команда `npm run check:subpath` сама збирає проєкт і перевіряє оболонку та PNG-іконки під `/school_journal/` на вбудованому сервері Node.js.
+
+## Перевірка підшляху GitHub Pages
+Команда `npm run check:subpath` виконує збірку, тимчасово розміщує `dist/` за адресою `/school_journal/` та перевіряє відповіді, типи вмісту і відносні шляхи. Тимчасові файли видаляються після перевірки.
 
 ## Налаштування
 `.env.example` → `.env`. У T-030 лише `SJ_DATA_SOURCE=mock`. Не комітьте ключі чи реальні дані учнів.

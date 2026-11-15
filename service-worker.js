@@ -1,5 +1,5 @@
 /* App-shell service worker. Paths relative to registration scope (GitHub Pages subpath safe). */
-const CACHE = 'school-journal-shell-v20261115';
+const CACHE = 'school-journal-shell-v20261115-png-icons';
 const SHELL_FILES = [
   './',
   './index.html',
@@ -8,7 +8,11 @@ const SHELL_FILES = [
   './src/data.js',
   './app-config.js',
   './manifest.webmanifest',
-  './icon.svg'
+  './icon.svg',
+  './icon-192.png',
+  './icon-512.png',
+  './icon-maskable-512.png',
+  './apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {

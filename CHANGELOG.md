@@ -1,5 +1,10 @@
 # Changelog — school_journal
 
+## T-030 — GitHub Pages subpath, PNG icons, and continuous integration
+- Added a dependency-free subpath check that builds the app, serves it from a temporary `/school_journal/` directory, verifies response status and media types, and rejects root-relative asset URLs.
+- Added standard, maskable, and Apple touch PNG icons generated with Node.js built-in modules; kept the existing SVG icon and all earlier changelog entries.
+- Added GitHub Actions checks for pull requests and pushes to `main`, pinned to verified action commit hashes.
+
 ## T-030 — PWA skeleton (mock data)
 - Added a mobile-first Ukrainian sign-in, journals, lesson dates and read-only lesson-window flow.
 - Added fictional 8-А students, two subjects, lesson examples and lesson characteristics from DATA_CONTRACT.
