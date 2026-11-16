@@ -1,11 +1,22 @@
--- T-023B RLS checks — run ONLY after T-023A migration is applied on live.
--- Use SQL Editor as postgres/service role for setup; tests switch roles.
--- All mutating sections use BEGIN … ROLLBACK. Synthetic data only.
--- Fill results into docs/RLS_TEST_REPORT.md
+-- T-023B RLS checks — run ONLY after T-023A is applied on live.
+-- SQL Editor as postgres/service role. All mutating blocks use BEGIN … ROLLBACK.
+-- Synthetic data only. Fill results into docs/RLS_TEST_REPORT.md
+--
+-- Prerequisites: T-023A applied; profiles.role = 'owner' exists.
+-- Optional: T-024 seed_demo for (e) v_lesson_window rows.
+-- JWT: use request.jwt.claims (JSON), not the deprecated request.jwt.claim.sub.
 
--- Prerequisites:
---   T-023A applied; at least one profiles.role = 'owner'.
---   Optional: T-024 seed_demo for (e) v_lesson_window rows.
+do $$
+declare
+  v_owner text;
+begin
+  select id::text into v_owner from public.profiles where role = 'owner' limit 1;
+  if v_owner is null then
+    raise exception 'T-023B: no profiles.role = owner — create Auth user / set role first';
+  end if;
+  perform set_config('app.t023b_owner', v_owner, false);
+  raise notice 'T-023B owner for checks: %', v_owner;
+end $$;
 
 -- ============================================================
 -- (b) anon — expect privilege failures / no access
@@ -33,8 +44,14 @@ rollback;
 -- ============================================================
 begin;
   set local role authenticated;
-  select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000099', true);
-  select set_config('request.jwt.claim.role', 'authenticated', true);
+  select set_config(
+    'request.jwt.claims',
+    json_build_object(
+      'sub', '00000000-0000-4000-8000-000000000099',
+      'role', 'authenticated'
+    )::text,
+    true
+  );
 
   select count(*) as no_profile_journals from public.journals;
   select count(*) as no_profile_lessons from public.lessons;
@@ -44,12 +61,17 @@ rollback;
 
 -- ============================================================
 -- (d) authenticated cannot UPDATE profiles.role (column privilege)
--- Replace OWNER_UUID with real owner id from profiles.
 -- ============================================================
 begin;
   set local role authenticated;
-  select set_config('request.jwt.claim.sub', 'OWNER_UUID', true);
-  select set_config('request.jwt.claim.role', 'authenticated', true);
+  select set_config(
+    'request.jwt.claims',
+    json_build_object(
+      'sub', current_setting('app.t023b_owner'),
+      'role', 'authenticated'
+    )::text,
+    true
+  );
 
   update public.profiles
   set role = 'teacher'
@@ -58,12 +80,17 @@ rollback;
 
 -- ============================================================
 -- (a) owner as authenticated — read/write (rollback)
--- Replace OWNER_UUID after looking up profiles.
 -- ============================================================
 begin;
   set local role authenticated;
-  select set_config('request.jwt.claim.sub', 'OWNER_UUID', true);
-  select set_config('request.jwt.claim.role', 'authenticated', true);
+  select set_config(
+    'request.jwt.claims',
+    json_build_object(
+      'sub', current_setting('app.t023b_owner'),
+      'role', 'authenticated'
+    )::text,
+    true
+  );
 
   select count(*) as owner_journals from public.journals;
   select count(*) as owner_lessons from public.lessons;
@@ -75,18 +102,30 @@ begin;
 rollback;
 
 -- ============================================================
--- (e) v_lesson_window — owner vs stranger (needs T-024)
+-- (e) v_lesson_window — owner vs stranger (needs T-024 data)
 -- ============================================================
 begin;
   set local role authenticated;
-  select set_config('request.jwt.claim.sub', 'OWNER_UUID', true);
-  select set_config('request.jwt.claim.role', 'authenticated', true);
+  select set_config(
+    'request.jwt.claims',
+    json_build_object(
+      'sub', current_setting('app.t023b_owner'),
+      'role', 'authenticated'
+    )::text,
+    true
+  );
   select count(*) as owner_window_rows from public.v_lesson_window;
 rollback;
 
 begin;
   set local role authenticated;
-  select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000099', true);
-  select set_config('request.jwt.claim.role', 'authenticated', true);
+  select set_config(
+    'request.jwt.claims',
+    json_build_object(
+      'sub', '00000000-0000-4000-8000-000000000099',
+      'role', 'authenticated'
+    )::text,
+    true
+  );
   select count(*) as stranger_window_rows from public.v_lesson_window;
 rollback;
