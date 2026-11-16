@@ -1,5 +1,10 @@
 # Changelog — school_journal
 
+## T-030C — Assessment kinds (independent, control)
+- UI labels for five kinds: current, independent, control, thematic, board (Ukrainian).
+- Unknown kind shows the raw code or «невідомий вид», not a silent fallback.
+- Mock data: one independent and one control grade (board rule preserved).
+
 ## T-030 — GitHub Pages subpath, PNG icons, and continuous integration
 - Added a dependency-free subpath check that builds the app, serves it from a temporary `/school_journal/` directory, verifies response status and media types, and rejects root-relative asset URLs.
 - Added standard, maskable, and Apple touch PNG icons generated with Node.js built-in modules; kept the existing SVG icon and all earlier changelog entries.

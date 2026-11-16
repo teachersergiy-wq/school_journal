@@ -8,6 +8,20 @@ const esc = (v) =>
 const date = (v) =>
   new Intl.DateTimeFormat('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(v + 'T12:00:00'));
 
+const ASSESSMENT_KIND_LABELS = {
+  current: 'Поточна',
+  independent: 'Самостійна',
+  control: 'Контрольна',
+  thematic: 'Тематична',
+  board: 'Біля дошки',
+};
+const assessmentKindLabel = (kind) =>
+  Object.prototype.hasOwnProperty.call(ASSESSMENT_KIND_LABELS, kind)
+    ? ASSESSMENT_KIND_LABELS[kind]
+    : kind
+      ? String(kind)
+      : 'невідомий вид';
+
 function header(title, back = '') {
   return `<header class="topbar">${back ? `<button class="icon-button" data-action="${esc(back)}" aria-label="Назад">←</button>` : '<span class="brand-mark">Ш</span>'}<div class="topbar-title"><span class="eyebrow">ШКІЛЬНИЙ ЖУРНАЛ</span><strong>${esc(title)}</strong></div>${s.user ? '<span class="avatar">У</span>' : ''}</header>`;
 }
@@ -76,7 +90,7 @@ function lessonWindow() {
       let chips = r?.isAbsent
         ? '<span class="detail-chip absent">Відсутній · н</span>'
         : r
-          ? `<span class="detail-chip">Д/з: ${hw[r.homework] ?? '—'}</span>${r.lateMinutes ? `<span class="detail-chip">Запізнення ${r.lateMinutes} хв</span>` : ''}${(r.assessments ?? []).map((a) => `<span class="detail-chip grade">${a.value} балів · ${a.kind === 'board' ? 'дошка' : a.kind === 'thematic' ? 'тематична' : 'поточна'}</span>`).join('')}${(r.behavior ?? []).map((id) => `<span class="detail-chip behavior">${esc(d.behaviorMarks.find((m) => m.id === id)?.label ?? id)}</span>`).join('')}${r.hasNotebook === false ? '<span class="detail-chip">Без зошита</span>' : ''}${r.hasTextbook === false ? '<span class="detail-chip">Без підручника</span>' : ''}${r.notTakingNotes ? '<span class="detail-chip">Не записує</span>' : ''}${r.boardRefused ? '<span class="detail-chip">Відмова біля дошки</span>' : ''}${(r.exits ?? []).map((x) => `<span class="detail-chip">Вихід: ${exit[x.reason]}</span>`).join('')}`
+          ? `<span class="detail-chip">Д/з: ${hw[r.homework] ?? '—'}</span>${r.lateMinutes ? `<span class="detail-chip">Запізнення ${r.lateMinutes} хв</span>` : ''}${(r.assessments ?? []).map((a) => `<span class="detail-chip grade">${a.value} балів · ${esc(assessmentKindLabel(a.kind))}</span>`).join('')}${(r.behavior ?? []).map((id) => `<span class="detail-chip behavior">${esc(d.behaviorMarks.find((m) => m.id === id)?.label ?? id)}</span>`).join('')}${r.hasNotebook === false ? '<span class="detail-chip">Без зошита</span>' : ''}${r.hasTextbook === false ? '<span class="detail-chip">Без підручника</span>' : ''}${r.notTakingNotes ? '<span class="detail-chip">Не записує</span>' : ''}${r.boardRefused ? '<span class="detail-chip">Відмова біля дошки</span>' : ''}${(r.exits ?? []).map((x) => `<span class="detail-chip">Вихід: ${exit[x.reason]}</span>`).join('')}`
           : '<span class="detail-chip muted-chip">Ще не позначено</span>';
       return `<article class="student-row"><span class="student-number">${String(i + 1).padStart(2, '0')}</span><div class="student-content"><div class="student-name-line"><strong>${esc(st.fullName)}</strong>${r?.isAbsent ? '<span class="absence-pill">н</span>' : r ? '<span class="tiny-value">Запис є</span>' : '<span class="empty-status">—</span>'}</div><div class="student-details">${chips}</div></div></article>`;
     })
