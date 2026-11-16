@@ -8,6 +8,7 @@
     "check": "node scripts/check.mjs",
     "build": "node scripts/build.mjs",
     "preview": "node scripts/preview-server.mjs",
-    "check:subpath": "node scripts/check-subpath.mjs"
+    "check:subpath": "node scripts/check-subpath.mjs",
+    "test": "node --test"
   }
 }
