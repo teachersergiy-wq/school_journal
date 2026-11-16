@@ -28,6 +28,6 @@ Schema `private` must stay **out** of API exposed schemas.
 
 ## Status
 - T-020 core schema: on main / applied historically.
-- T-023A security hardening: merged path per project process.
-- T-024 demo seed + board exclusivity: branch `grok/T-024`.
-- T-023B RLS checks: branch `grok/T-023B`.
+- T-023A security hardening: applied on live (2026-11-14).
+- T-024 demo seed + board exclusivity + assessment kinds: PR #5 (REWORK enum order).
+- T-023B RLS checks: PR #6.
