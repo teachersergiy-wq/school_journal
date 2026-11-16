@@ -1,6 +1,6 @@
 -- T-024 synthetic demo journal data
 -- ONLY fictional names («Учень NN»). Idempotent for pure-demo journals.
--- Requires: migrations, starter seed, profiles.role = 'owner'.
+-- Requires: migrations (incl. independent/control kinds), starter seed, profiles.role = 'owner'.
 -- Topics prefixed «[ДЕМО]». Aborts if journal already has non-demo lessons.
 
 do $$
@@ -50,7 +50,6 @@ begin
     returning id into v_journal;
   end if;
 
-  -- Refuse to touch journals that already have real (non-demo) lessons
   select count(*) into v_non_demo
   from public.lessons
   where journal_id = v_journal
@@ -80,8 +79,6 @@ begin
       values (v_journal, d, 1, v_topic)
       returning id into v_lesson;
     else
-      -- Existing lesson: never rewrite topic unless it is already a demo topic
-      -- (non-demo already blocked above; keep existing [ДЕМО] topic as-is)
       null;
     end if;
 
@@ -118,6 +115,7 @@ begin
           insert into public.lesson_exits (record_id, reason)
           values (v_record, 'toilet');
         elsif student_rec.rn = 3 then
+          -- board refusal only (no kind=board assessment)
           insert into public.lesson_records (
             lesson_id, student_id, is_absent, homework, has_notebook, has_textbook,
             not_taking_notes, board_refused, late_minutes
@@ -151,6 +149,7 @@ begin
         end if;
       end if;
 
+      -- current (rn 3–6, lesson 1) — skip if would conflict; rn=3 has refusal not board grade
       if student_rec.rn between 3 and 6 and i = 1 then
         if not exists (
           select 1 from public.assessments a
@@ -160,6 +159,7 @@ begin
           values (v_lesson, v_student, 8 + (student_rec.rn % 4), 'current');
         end if;
       end if;
+
       if student_rec.rn = 4 and i = 2 then
         if not exists (
           select 1 from public.assessments a
@@ -169,6 +169,8 @@ begin
           values (v_lesson, v_student, 10, 'thematic');
         end if;
       end if;
+
+      -- board grade only rn=4 lesson 1 (not rn=3 refusal)
       if student_rec.rn = 4 and i = 1 then
         if not exists (
           select 1 from public.assessments a
@@ -179,8 +181,30 @@ begin
         end if;
       end if;
 
+      -- independent (rn=5, lesson 1)
+      if student_rec.rn = 5 and i = 1 then
+        if not exists (
+          select 1 from public.assessments a
+          where a.lesson_id = v_lesson and a.student_id = v_student and a.kind = 'independent'
+        ) then
+          insert into public.assessments (lesson_id, student_id, value, kind)
+          values (v_lesson, v_student, 8, 'independent');
+        end if;
+      end if;
+
+      -- control (rn=6, lesson 1)
+      if student_rec.rn = 6 and i = 1 then
+        if not exists (
+          select 1 from public.assessments a
+          where a.lesson_id = v_lesson and a.student_id = v_student and a.kind = 'control'
+        ) then
+          insert into public.assessments (lesson_id, student_id, value, kind)
+          values (v_lesson, v_student, 10, 'control');
+        end if;
+      end if;
+
     end loop;
   end loop;
 
-  raise notice 'T-024 seed_demo OK: journal %, 5 [ДЕМО] lessons', v_journal;
+  raise notice 'T-024 seed_demo OK: journal %, 5 [ДЕМО] lessons (kinds incl. independent/control)', v_journal;
 end $$;
