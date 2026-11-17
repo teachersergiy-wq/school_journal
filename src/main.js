@@ -24,7 +24,7 @@ function nav() {
 }
 
 function signIn(message = '') {
-  app.innerHTML = `<section class="signin-page"><div class="signin-brand"><div class="brand-mark brand-mark-large">Ш</div><p class="eyebrow">ВАШ РОБОЧИЙ ПРОСТІР</p><h1>Шкільний<br>журнал</h1><p class="muted">Уроки, оцінки та щоденна робота класу — в одному місці.</p></div><form id="login" class="signin-card"><div><span class="eyebrow">ВХІД ДО СИСТЕМИ</span><h2>Вітаємо!</h2><p class="muted">Увійдіть, щоб відкрити свої журнали.</p></div><label class="field-label" for="email">Електронна пошта</label><input id="email" name="email" type="email" autocomplete="username" placeholder="teacher@example.com" required><label class="field-label" for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Введіть пароль" required>${message ? `<p class="form-error" role="alert">${esc(message)}</p>` : ''}<button class="primary-button full-button">Увійти <span>›</span></button><p class="demo-note"><span class="status-dot"></span> Демонстраційний режим · дані вигадані</p></form><p class="signin-foot">Немає реєстрації та відновлення пароля в цій версії.</p></section>`;
+  app.innerHTML = `<section class="signin-page"><div class="signin-brand"><div class="brand-mark brand-mark-large">Ш</div><p class="eyebrow">ВАШ РОБОЧИЙ ПРОСТІР</p><h1>Шкільний<br>журнал</h1><p class="muted">Уроки, оцінки та щоденна робота класу — в одному місці.</p></div><form id="login" class="signin-card"><div><span class="eyebrow">ВХІД ДО СИСТЕМИ</span><h2>Вітаємо!</h2><p class="muted">Увійдіть, щоб відкрити свої журнали.</p></div><label class="field-label" for="email">Електронна пошта</label><input id="email" name="email" type="email" autocomplete="username" placeholder="teacher@example.com" required><label class="field-label" for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Введіть пароль" required>${message ? `<p class="form-error" role="alert">${esc(message)}</p>` : ''}<button class="primary-button full-button">Увійти <span>›</span></button><p class="demo-note"><span class="status-dot"></span> ${repo.mode === 'mock' ? 'Демонстраційний режим · дані вигадані' : 'Захищений режим · лише перегляд'}</p></form><p class="signin-foot">Немає реєстрації та відновлення пароля в цій версії.</p></section>`;
   document.querySelector('#login').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -45,7 +45,7 @@ function journals() {
       (j, i) =>
         `<button class="journal-card" data-journal="${esc(j.id)}"><span class="subject-icon ${i ? 'violet' : ''}">${i ? '△' : '∑'}</span><span class="journal-main"><strong>${esc(j.subject)}</strong><span>${esc(j.className)} клас · ${j.studentsCount} учнів</span><small>Навчальний рік 2026–2027</small></span><span class="card-chevron">›</span></button>`
     )
-    .join('')}</section><div class="info-banner"><span class="info-icon">i</span><p>Демонстраційний журнал. Усі учні та записи — вигадані.</p></div></main>${nav()}`;
+    .join('')}</section><div class="info-banner"><span class="info-icon">i</span><p>${repo.mode === 'mock' ? 'Демонстраційний журнал. Усі учні та записи — вигадані.' : 'Дані доступні лише в межах прав поточного користувача.'}</p></div></main>${nav()}`;
   app.querySelectorAll('[data-journal]').forEach((b) =>
     b.addEventListener('click', async () => {
       s.journal = s.journals.find((j) => j.id === b.dataset.journal);
@@ -88,7 +88,7 @@ function lessonWindow() {
       return `<article class="student-row"><span class="student-number">${String(i + 1).padStart(2, '0')}</span><div class="student-content"><div class="student-name-line"><strong>${esc(st.fullName)}</strong>${r?.isAbsent ? '<span class="absence-pill">н</span>' : r ? '<span class="tiny-value">Запис є</span>' : '<span class="empty-status">—</span>'}</div><div class="student-details">${chips}</div></div></article>`;
     })
     .join('');
-  app.innerHTML = `${header('Вікно уроку', 'lessons')}<main class="page-content"><div class="crumb">${esc(s.journal.subject.toUpperCase())} <span>/</span> ${esc(s.journal.className)} <span>/</span> ${date(s.lesson.date).toUpperCase()}</div><section class="lesson-title-block"><div><p class="eyebrow">${esc(s.journal.subject)} · ${esc(s.journal.className)}</p><h1>${date(s.lesson.date)}</h1><p class="muted">${esc(s.lesson.topic)} · урок ${s.lesson.number}</p></div><span class="readonly-chip">Лише перегляд</span></section><div class="window-stats"><div><strong>${d.students.length}</strong><span>учнів у класі</span></div><div><strong>${d.students.filter((x) => x.record?.isAbsent).length}</strong><span>відсутні</span></div><div><strong>${d.students.filter((x) => x.record).length}</strong><span>заповнено</span></div></div><div class="section-heading"><div><h2>Учні та характеристики</h2><p class="muted">Позначки за цей урок</p></div><span class="readonly-tag">DEMO</span></div><section class="student-list">${rows}</section><p class="readonly-note">Редагування та збереження будуть додані в наступних етапах.</p></main>${nav()}`;
+  app.innerHTML = `${header('Вікно уроку', 'lessons')}<main class="page-content"><div class="crumb">${esc(s.journal.subject.toUpperCase())} <span>/</span> ${esc(s.journal.className)} <span>/</span> ${date(s.lesson.date).toUpperCase()}</div><section class="lesson-title-block"><div><p class="eyebrow">${esc(s.journal.subject)} · ${esc(s.journal.className)}</p><h1>${date(s.lesson.date)}</h1><p class="muted">${esc(s.lesson.topic)} · урок ${s.lesson.number}</p></div><span class="readonly-chip">Лише перегляд</span></section><div class="window-stats"><div><strong>${d.students.length}</strong><span>учнів у класі</span></div><div><strong>${d.students.filter((x) => x.record?.isAbsent).length}</strong><span>відсутні</span></div><div><strong>${d.students.filter((x) => x.record).length}</strong><span>заповнено</span></div></div><div class="section-heading"><div><h2>Учні та характеристики</h2><p class="muted">Позначки за цей урок</p></div><span class="readonly-tag">${repo.mode === 'mock' ? 'DEMO' : 'ЛИШЕ ПЕРЕГЛЯД'}</span></div><section class="student-list">${rows}</section><p class="readonly-note">Редагування та збереження будуть додані в наступних етапах.</p></main>${nav()}`;
 }
 
 function render() {
@@ -119,3 +119,19 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 }
 
 render();
+
+async function restoreSavedSession() {
+  if (typeof repo.restoreSession !== 'function') return;
+  try {
+    const user = await repo.restoreSession();
+    if (!user) return;
+    s.user = user;
+    s.journals = await repo.getJournals();
+    s.screen = 'journals';
+    render();
+  } catch (error) {
+    signIn(error.message);
+  }
+}
+
+restoreSavedSession();
