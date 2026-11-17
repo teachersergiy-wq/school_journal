@@ -26,8 +26,24 @@ Therefore **every migration** that adds a table or a function the app must call 
 Trigger-only functions do **not** need `GRANT EXECUTE` to clients.
 Schema `private` must stay **out** of API exposed schemas.
 
+### Exception: schema `ops` (T-006 keep-alive)
+By default **anon has no privileges** on `public` or `private`.
+
+The only intentional exception is schema **`ops`** with a single function `ops.keepalive()`:
+- Purpose: Free-tier anti-pause. Supabase counts **database** activity; Auth pings do not count.
+- Design: function lives in **`ops`**, not `public`, so we never grant `USAGE` on `public` to `anon`.
+- Body: `security invoker`, `search_path = ''`, reads only `pg_catalog.pg_namespace` (no app data).
+- Privileges: `anon` has `USAGE` on `ops` and `EXECUTE` on `ops.keepalive()` only. **No** tables in `ops`. **No** grants to `authenticated` on `ops`.
+- After apply: owner must add **`ops`** to Data API exposed schemas so PostgREST can call the RPC from a scheduler (e.g. GitHub Actions `curl` to `/rest/v1/rpc/keepalive`).
+
+**Remove the exception (if keep-alive is no longer needed):**
+```sql
+drop schema ops cascade;
+```
+Then remove `ops` from Settings → API → Exposed schemas.
+
 ## Status
 - T-020 core schema: on main / applied historically.
 - T-023A security hardening: applied on live (2026-11-14).
-- T-024 demo seed + board exclusivity + assessment kinds: PR #5 (REWORK enum order).
-- T-023B RLS checks: PR #6.
+- T-024 / assessment kinds: see open PRs (must land before this migration on a clean timeline).
+- T-006 keep-alive: branch `grok/T-006-keepalive` (not applied until ACCEPTED).

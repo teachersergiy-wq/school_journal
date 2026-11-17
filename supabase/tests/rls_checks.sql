@@ -4,6 +4,7 @@
 --
 -- Prerequisites: T-023A applied; profiles.role = 'owner' exists.
 -- Optional: T-024 seed_demo for (e) v_lesson_window rows.
+-- Optional: T-006 keepalive migration for ops checks.
 -- JWT: use request.jwt.claims (JSON), not the deprecated request.jwt.claim.sub.
 
 do $$
@@ -19,7 +20,7 @@ begin
 end $$;
 
 -- ============================================================
--- (b) anon — expect privilege failures / no access
+-- (b) anon — expect privilege failures / no access on public
 -- ============================================================
 begin;
   set local role anon;
@@ -32,6 +33,39 @@ begin;
   select count(*) as anon_view from public.v_lesson_window;
 rollback;
 
+begin;
+  set local role anon;
+  select public.save_lesson_record(
+    null, null, false, null, null, null, null, false, null, null, null
+  );
+rollback;
+
+-- ============================================================
+-- (b2) T-006: anon may ONLY call ops.keepalive(); public/private stay closed
+-- ============================================================
+select
+  has_schema_privilege('anon', 'public', 'usage') as anon_public_usage,
+  has_schema_privilege('anon', 'private', 'usage') as anon_private_usage,
+  has_schema_privilege('anon', 'ops', 'usage') as anon_ops_usage;
+-- expect after T-006: false, false, true
+
+select count(*) as ops_function_count
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'ops';
+-- expect: 1
+
+select count(*) as ops_table_count
+from pg_class c join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'ops' and c.relkind = 'r';
+-- expect: 0
+
+begin;
+  set local role anon;
+  select ops.keepalive() as keepalive_as_anon;
+  -- expect: integer (success)
+rollback;
+
+-- anon must not execute random public RPCs (still denied)
 begin;
   set local role anon;
   select public.save_lesson_record(
