@@ -42,7 +42,7 @@ npm run preview
 
 ## Будильник
 
-Workflow `.github/workflows/keepalive.yml` раз на три дні викликає `ops.keepalive()` через Data API. Це мінімальний запит до бази, який має запобігти паузі проєкту Supabase Free через низьку активність. Supabase оцінює активність за тиждень і надсилає власнику лист-попередження приблизно за тиждень до можливої паузи ([документація Supabase про автоматичну паузу](https://supabase.com/docs/guides/platform/free-project-pausing)).
+Workflow `.github/workflows/keepalive.yml` раз на три дні викликає `ops.keepalive()` через Data API. Це мінімальний запит до бази, призначений підтримувати активність і зменшувати ризик паузи проєкту Supabase Free; він не є гарантією. Supabase оцінює низьку активність за тиждень і надсилає власнику лист-попередження приблизно за тиждень до можливої паузи ([документація Supabase про автоматичну паузу](https://supabase.com/docs/guides/platform/free-project-pausing)).
 
 Щоб налаштувати будильник:
 
