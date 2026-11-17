@@ -40,6 +40,20 @@ npm run preview
 
 Щоб відкотити невдале розгортання, створіть і злийте pull request, який повертає небажану зміну в `main`; Pages workflow розгорне відновлену версію. Щоб повернутися до вигаданих даних, встановіть `SJ_DATA_SOURCE=mock` або видаліть цю variable, потім повторно запустіть workflow.
 
+## Будильник
+
+Workflow `.github/workflows/keepalive.yml` раз на три дні викликає `ops.keepalive()` через Data API. Це мінімальний запит до бази, який має запобігти паузі проєкту Supabase Free через низьку активність. Supabase оцінює активність за тиждень і надсилає власнику лист-попередження приблизно за тиждень до можливої паузи ([документація Supabase про автоматичну паузу](https://supabase.com/docs/guides/platform/free-project-pausing)).
+
+Щоб налаштувати будильник:
+
+1. У **Settings → Secrets and variables → Actions → Variables** створіть repository variables `SJ_SUPABASE_URL` і `SJ_SUPABASE_ANON_KEY`. Це публічні значення; workflow надсилає лише заголовок `apikey`, без `Authorization: Bearer`.
+2. Після застосування міграції Grok додайте схему `ops` до списку відкритих схем у Supabase **Data API settings**.
+3. У **Actions → Supabase keep-alive** запустіть workflow вручну й перевірте, що результат зелений.
+
+Якщо одна зі змінних ще не створена, workflow завершується успішно з попередженням «будильник ще не налаштований». Після налаштування він виводить лише HTTP-код відповіді, не ключ і не тіло відповіді.
+
+GitHub повідомляє, що в публічному репозиторії вимикає планові workflow після 60 днів без активності репозиторію ([документація GitHub про вимкнення workflow](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows)). Тому власнику слід щомісяця перевіряти вкладку **Actions** і, якщо workflow вимкнений, знову увімкнути та запустити його вручну.
+
 ## Шляхи
 Усі посилання відносні (`./…`), щоб працювало в підпапці (`/school_journal/` на GitHub Pages).
 
