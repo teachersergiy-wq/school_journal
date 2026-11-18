@@ -1,11 +1,6 @@
--- T-023B RLS checks — run ONLY after T-023A is applied on live.
--- SQL Editor as postgres/service role. All mutating blocks use BEGIN … ROLLBACK.
--- Synthetic data only. Fill results into docs/RLS_TEST_REPORT.md
---
--- Prerequisites: T-023A applied; profiles.role = 'owner' exists.
--- Optional: T-024 seed_demo for (e) v_lesson_window rows.
--- Optional: T-006 keepalive migration for ops checks.
--- JWT: use request.jwt.claims (JSON), not the deprecated request.jwt.claim.sub.
+-- T-023B / T-006 RLS checks — run as postgres/service role after migrations applied.
+-- All mutating blocks use BEGIN … ROLLBACK. Synthetic data only.
+-- JWT: request.jwt.claims JSON (not deprecated request.jwt.claim.sub).
 
 do $$
 declare
@@ -13,14 +8,26 @@ declare
 begin
   select id::text into v_owner from public.profiles where role = 'owner' limit 1;
   if v_owner is null then
-    raise exception 'T-023B: no profiles.role = owner — create Auth user / set role first';
+    raise exception 'no profiles.role = owner — create Auth user / set role first';
   end if;
   perform set_config('app.t023b_owner', v_owner, false);
-  raise notice 'T-023B owner for checks: %', v_owner;
+  raise notice 'owner for checks: %', v_owner;
 end $$;
 
 -- ============================================================
--- (b) anon — expect privilege failures / no access on public
+-- Static: public function EXECUTE privileges
+-- ============================================================
+select p.proname,
+       has_function_privilege('anon', p.oid, 'execute') as anon_exec,
+       has_function_privilege('authenticated', p.oid, 'execute') as auth_exec
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and p.prokind = 'f'
+order by 1;
+-- expect: anon none; authenticated only save_lesson_record
+
+-- ============================================================
+-- (b) anon — denied on public tables / RPC
 -- ============================================================
 begin;
   set local role anon;
@@ -41,13 +48,13 @@ begin;
 rollback;
 
 -- ============================================================
--- (b2) T-006: anon may ONLY call ops.keepalive(); public/private stay closed
+-- (b2) T-006: anon only ops.keepalive
 -- ============================================================
 select
   has_schema_privilege('anon', 'public', 'usage') as anon_public_usage,
   has_schema_privilege('anon', 'private', 'usage') as anon_private_usage,
   has_schema_privilege('anon', 'ops', 'usage') as anon_ops_usage;
--- expect after T-006: false, false, true
+-- expect: false, false, true
 
 select count(*) as ops_function_count
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -62,19 +69,10 @@ where n.nspname = 'ops' and c.relkind = 'r';
 begin;
   set local role anon;
   select ops.keepalive() as keepalive_as_anon;
-  -- expect: integer (success)
-rollback;
-
--- anon must not execute random public RPCs (still denied)
-begin;
-  set local role anon;
-  select public.save_lesson_record(
-    null, null, false, null, null, null, null, false, null, null, null
-  );
 rollback;
 
 -- ============================================================
--- (c) authenticated with random JWT sub (no profile) — 0 rows
+-- (c) authenticated, random JWT, no profile — 0 rows
 -- ============================================================
 begin;
   set local role authenticated;
@@ -94,7 +92,7 @@ begin;
 rollback;
 
 -- ============================================================
--- (d) authenticated cannot UPDATE profiles.role (column privilege)
+-- (d) cannot UPDATE profiles.role
 -- ============================================================
 begin;
   set local role authenticated;
@@ -113,7 +111,7 @@ begin;
 rollback;
 
 -- ============================================================
--- (a) owner as authenticated — read/write (rollback)
+-- (a) owner read/write (rollback)
 -- ============================================================
 begin;
   set local role authenticated;
@@ -136,7 +134,7 @@ begin;
 rollback;
 
 -- ============================================================
--- (e) v_lesson_window — owner vs stranger (needs T-024 data)
+-- (e) v_lesson_window — owner vs stranger
 -- ============================================================
 begin;
   set local role authenticated;
