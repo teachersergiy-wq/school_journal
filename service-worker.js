@@ -1,11 +1,13 @@
 /* App-shell service worker. Paths relative to registration scope (GitHub Pages subpath safe). */
-const CACHE = 'school-journal-shell-v20261115-png-icons';
+const CACHE = 'school-journal-shell-v20261117-supabase-client';
 const SHELL_FILES = [
   './',
   './index.html',
   './src/styles.css',
   './src/main.js',
   './src/data.js',
+  './src/data/supabase-client.js',
+  './src/data/supabase-repository.js',
   './app-config.js',
   './manifest.webmanifest',
   './icon.svg',
