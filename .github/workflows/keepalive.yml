@@ -1,0 +1,50 @@
+name: Supabase keep-alive
+
+on:
+  schedule:
+    - cron: '23 6 */3 * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Supabase keep-alive RPC
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ vars.SJ_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SJ_SUPABASE_ANON_KEY }}
+        run: |
+          if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_ANON_KEY" ]]; then
+            echo "::warning::будильник ще не налаштований"
+            exit 0
+          fi
+
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+
+          set +e
+          http_code="$(curl --silent --fail-with-body --max-time 30 \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --request POST "${SUPABASE_URL%/}/rest/v1/rpc/keepalive" \
+            --header "apikey: $SUPABASE_ANON_KEY" \
+            --header "Content-Profile: ops" \
+            --header "Content-Type: application/json" \
+            --data '{}')"
+          curl_status=$?
+          set -e
+
+          printf 'HTTP status: %s\n' "${http_code:-000}"
+          if (( curl_status != 0 )); then
+            printf 'Keep-alive request failed (curl exit %s).\n' "$curl_status" >&2
+            exit "$curl_status"
+          fi
+
+          response="$(<"$response_file")"
+          if [[ ! "$response" =~ ^-?[0-9]+$ ]]; then
+            echo "Keep-alive response was not an integer." >&2
+            exit 1
+          fi
