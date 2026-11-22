@@ -5,6 +5,7 @@ const SHELL_FILES = [
   './index.html',
   './src/styles.css',
   './src/main.js',
+  './src/navigation.js',
   './src/data.js',
   './src/data/supabase-client.js',
   './src/data/supabase-repository.js',

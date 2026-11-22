@@ -11,7 +11,7 @@ test('maps journal, lesson, and v_lesson_window rows without replacing unknown a
     async get(path, query) {
       calls.push({ path, query });
       if (path === 'journals') return [{
-        id: 'journal-1', class_id: 'class-1',
+        id: 'journal-1', class_id: 'class-1', subject_id: 'subject-1',
         classes: { grade: 8, letter: 'А' }, subjects: { name: 'Алгебра' }
       }];
       if (path === 'students') return [{ class_id: 'class-1' }, { class_id: 'class-1' }];
@@ -31,7 +31,8 @@ test('maps journal, lesson, and v_lesson_window rows without replacing unknown a
   };
   const repository = new SupabaseJournalRepository({}, client);
   assert.deepEqual(await repository.getJournals(), [{
-    id: 'journal-1', subject: 'Алгебра', className: '8-А', studentsCount: 2
+    id: 'journal-1', classId: 'class-1', subjectId: 'subject-1',
+    subject: 'Алгебра', className: '8-А', studentsCount: 2
   }]);
   assert.deepEqual(await repository.getLessons('journal-1'), [{
     id: 'lesson-1', date: '2026-11-17', number: 2, topic: 'Рівняння'
