@@ -15,7 +15,20 @@ export class MockJournalRepository {
   async restoreSession() { return null; }
   async signOut() {}
   async getJournals() { return journals; }
-  async getLessons(id) { return lessons[id] ?? []; }
+  async getLessons(id) { return [...(lessons[id] ?? [])].sort((a, b) => b.date.localeCompare(a.date) || b.number - a.number); }
+  async createLesson(journalId, { date, number, topic }) {
+    const items = lessons[journalId];
+    if (!items) throw new Error('Журнал не знайдено.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date ?? '')) || !Number.isInteger(Number(number)) || Number(number) < 1 || Number(number) > 10 || !String(topic ?? '').trim()) {
+      throw new Error('Вкажіть дату, номер уроку від 1 до 10 і тему.');
+    }
+    if (items.some((lesson) => lesson.date === date && lesson.number === Number(number))) {
+      throw new Error('Урок із таким номером на цю дату вже існує.');
+    }
+    const lesson = { id: `demo-${Date.now()}`, date, number: Number(number), topic: String(topic).trim() };
+    items.push(lesson);
+    return lesson;
+  }
   async getLessonWindow(lessonId, journalId) {
     const journal = journals.find((x) => x.id === journalId);
     const lesson = (lessons[journalId] ?? []).find((x) => x.id === lessonId);

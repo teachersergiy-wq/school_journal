@@ -11,6 +11,13 @@
 ## 2026-11-22 — T-062 lesson-to-journal link
 - Added a «Журнал» action to the lesson window that returns to the lesson dates for the same journal and focuses the lesson's date.
 
+## 2026-11-23 — T-063 touch target
+- Increased the manual lesson form fields to 44-pixel touch targets.
+
+## 2026-11-22 — T-063 manual lesson creation
+- Added a date, lesson number (1–10), and topic form to the journal's lesson dates.
+- Added RLS-protected lesson insertion with a Ukrainian duplicate lesson message; mock lessons update immediately and remain date-sorted.
+
 ## T-030 — GitHub Pages subpath, PNG icons, and continuous integration
 - Added a dependency-free subpath check that builds the app, serves it from a temporary `/school_journal/` directory, verifies response status and media types, and rejects root-relative asset URLs.
 - Added standard, maskable, and Apple touch PNG icons generated with Node.js built-in modules; kept the existing SVG icon and all earlier changelog entries.

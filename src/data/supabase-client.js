@@ -201,7 +201,13 @@ export function createSupabaseClient({
         throw new Error(SESSION_ERROR);
       }
     }
-    if (!result.response.ok) throw new Error(REQUEST_ERROR);
+    if (!result.response.ok) {
+      const error = new Error(REQUEST_ERROR);
+      if (typeof result.payload?.code === 'string' && /^[0-9A-Z]{5}$/.test(result.payload.code)) {
+        error.code = result.payload.code;
+      }
+      throw error;
+    }
     return result.payload;
   }
 
@@ -266,6 +272,18 @@ export function createSupabaseClient({
         if (value !== undefined && value !== null) endpoint.searchParams.set(key, String(value));
       }
       return requestAuthorized(endpoint, { method: 'GET' });
+    },
+
+    async insert(path, body, query = {}) {
+      const endpoint = new URL('/rest/v1/' + String(path).replace(/^\/+/, ''), baseUrl);
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined && value !== null) endpoint.searchParams.set(key, String(value));
+      }
+      return requestAuthorized(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' },
+        body: JSON.stringify(body)
+      });
     }
   };
 }
