@@ -46,7 +46,7 @@ select has_table_privilege('authenticated', 'public.profiles', 'delete') as auth
 -- expect: false
 
 -- 7. public functions: anon EXECUTE none;
---    authenticated EXECUTE: save_lesson_record, set_journal_mark, clear_journal_mark only
+--    authenticated EXECUTE only: save_lesson_record, set_journal_mark, clear_journal_mark
 select p.proname,
        has_function_privilege('anon', p.oid, 'execute') as anon_exec,
        has_function_privilege('authenticated', p.oid, 'execute') as auth_exec
@@ -59,21 +59,48 @@ order by 1;
 --         auth_exec true only for save_lesson_record, set_journal_mark, clear_journal_mark
 
 -- ============================================================
--- T-006 keep-alive (ops schema) — if applied
+-- T-006 keep-alive (ops schema)
 -- ============================================================
 
+-- 8. anon USAGE: only ops (not public, not private)
 select
   has_schema_privilege('anon', 'public', 'usage') as anon_public_usage,
   has_schema_privilege('anon', 'private', 'usage') as anon_private_usage,
   has_schema_privilege('anon', 'ops', 'usage') as anon_ops_usage;
--- expect: false, false, true (after T-006)
+-- expect: false, false, true
 
+-- 9. ops: exactly one function, zero tables
 select count(*) as ops_functions
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'ops';
+-- expect: 1
 
 select count(*) as ops_tables
 from pg_class c
 join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'ops' and c.relkind = 'r';
+-- expect: 0
+
+-- 10. authenticated has no privileges on ops
+select
+  has_schema_privilege('authenticated', 'ops', 'usage') as auth_ops_usage,
+  has_function_privilege('authenticated', 'ops.keepalive()', 'execute') as auth_keepalive_exec;
+-- expect: false, false
+
+-- 11. The only function anon may execute is ops.keepalive (not any public fn)
+select n.nspname, p.proname,
+       has_function_privilege('anon', p.oid, 'execute') as anon_exec
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where has_function_privilege('anon', p.oid, 'execute')
+  and n.nspname in ('public', 'private', 'ops')
+order by 1, 2;
+-- expect: only ops.keepalive
+
+-- 12. anon calling ops.keepalive() returns an integer
+begin;
+  set local role anon;
+  select ops.keepalive() as keepalive_result;
+  -- expect: integer >= 1
+rollback;

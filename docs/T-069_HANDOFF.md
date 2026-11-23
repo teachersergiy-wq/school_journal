@@ -1,21 +1,27 @@
-# T-069 Handoff — in_journal
+# T-069 Handoff — in_journal (+ schedule review notes)
 
 PROJECT: school_journal
 
 CHANGED:
 - `supabase/migrations/20261122000000_assessment_in_journal.sql`
-- `supabase/seed_demo.sql` — multi-grade samples; one selected, one none
-- `supabase/tests/in_journal.sql`
-- `supabase/tests/security.sql` — EXECUTE matrix includes set/clear_journal_mark
+- `supabase/seed_demo.sql`
+- `supabase/tests/in_journal.sql` — DO blocks, no top-level PERFORM; negative cases isolated
+- `supabase/tests/security.sql` — EXECUTE matrix + ops.keepalive checks restored
+- `docs/SCHEDULE_DESIGN_REVIEW.md` — Owner decisions 2026-11-23
 - `docs/T-069_HANDOFF.md`
 
 VERIFIED:
-Static packaging only. **Not applied to live** by Grok.
+- Static packaging by Grok only.
+- **Not applied to live** by Grok.
+- Claude previously dry-ran the migration on live with rollback (ACCEPTED logic).
 
 DECISIONS:
-Teacher alone chooses journal cell grade; partial unique index; no auto-pick; absent does not delete grades.
+- in_journal teacher-chosen; partial unique index
+- Schedule: cancel like replace for plan/sequence; substitution under Owner journal; UI rule for absence vs grades
 
 TODO:
-Claude ACCEPTED → merge → apply migration → re-run seed_demo if needed → tests
+1. Merge this PR after Claude re-check of tests/docs
+2. Claude applies migration + seed_demo on live
+3. No T-070+ SQL until contract v1.2 accepted
 
 FILES: listed under CHANGED.
