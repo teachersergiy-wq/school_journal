@@ -1,5 +1,7 @@
 import { SupabaseJournalRepository } from './data/supabase-repository.js';
 
+let mockAssessmentId = 1;
+
 const behaviorMarks=[{id:'disrupts',label:'Заважає'},{id:'talks',label:'Розмовляє'},{id:'uses_phone',label:'Користується телефоном'},{id:'rude',label:'Грубість'},{id:'active',label:'Активна участь'},{id:'helps',label:'Допомагає іншим'}];
 const students=Array.from({length:10},(_,i)=>({id:`student-${String(i+1).padStart(2,'0')}`,fullName:`Учень ${String(i+1).padStart(2,'0')}`}));
 const journals=[{id:'algebra-8a',classId:'class-8a',subjectId:'algebra',subject:'Алгебра',className:'8-А',studentsCount:10},{id:'geometry-8a',classId:'class-8a',subjectId:'geometry',subject:'Геометрія',className:'8-А',studentsCount:10}];
@@ -28,6 +30,47 @@ export class MockJournalRepository {
     const lesson = { id: `demo-${Date.now()}`, date, number: Number(number), topic: String(topic).trim() };
     items.push(lesson);
     return lesson;
+  }
+  async saveLessonRecord(lessonId, studentId, values) {
+    if (values.isAbsent && (values.assessments ?? []).length) {
+      throw new Error('Спочатку видаліть оцінки, потім позначайте учня відсутнім.');
+    }
+    if (values.boardRefused && (values.assessments ?? []).some((assessment) => assessment.kind === 'board')) {
+      throw new Error('Спочатку видаліть оцінку за дошку, а потім позначайте відмову.');
+    }
+    const record = records[lessonId]?.[studentId];
+    const assessments = record?.assessments ?? [];
+    if (!records[lessonId]) records[lessonId] = {};
+    records[lessonId][studentId] = values.isAbsent
+      ? { isAbsent: true, homework: null, hasNotebook: null, hasTextbook: null, notTakingNotes: null, boardRefused: false, lateMinutes: null, behavior: [], exits: [], assessments }
+      : { ...values, assessments };
+  }
+  async createAssessment({ lessonId, studentId, value, kind, boardRefused = false, isAbsent = false }) {
+    const assessment = { value, kind };
+    if (isAbsent) throw new Error('Для відсутнього учня спочатку зніміть позначку «н».');
+    if (boardRefused && assessment.kind === 'board') throw new Error('Спочатку зніміть відмову біля дошки, потім додайте оцінку за дошку.');
+    if (!Number.isInteger(Number(assessment.value)) || Number(assessment.value) < 1 || Number(assessment.value) > 12) throw new Error('Оцінка має бути від 1 до 12.');
+    if (!records[lessonId]) records[lessonId] = {};
+    const record = records[lessonId][studentId] ?? { isAbsent: false, behavior: [], exits: [], assessments: [] };
+    record.assessments ??= [];
+    const created = { id: `mock-assessment-${mockAssessmentId++}`, value: Number(assessment.value), kind: assessment.kind };
+    record.assessments.push(created);
+    records[lessonId][studentId] = record;
+    return { ...created };
+  }
+  async updateAssessment({ lessonId, studentId, assessmentId, value, kind, boardRefused = false, isAbsent = false }) {
+    const changes = { value, kind };
+    if (isAbsent) throw new Error('Для відсутнього учня спочатку зніміть позначку «н».');
+    if (boardRefused && changes.kind === 'board') throw new Error('Спочатку зніміть відмову біля дошки, потім додайте оцінку за дошку.');
+    if (!Number.isInteger(Number(changes.value)) || Number(changes.value) < 1 || Number(changes.value) > 12) throw new Error('Оцінка має бути від 1 до 12.');
+    const assessment = records[lessonId]?.[studentId]?.assessments?.find((item) => item.id === assessmentId);
+    if (!assessment) throw new Error('Оцінку не знайдено.');
+    Object.assign(assessment, { value: Number(changes.value), kind: changes.kind });
+  }
+  async deleteAssessment({ lessonId, studentId, assessmentId }) {
+    const record = records[lessonId]?.[studentId];
+    if (!record) return;
+    record.assessments = (record.assessments ?? []).filter((item) => item.id !== assessmentId);
   }
   async getLessonWindow(lessonId, journalId) {
     const journal = journals.find((x) => x.id === journalId);

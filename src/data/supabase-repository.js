@@ -39,6 +39,81 @@ export class SupabaseJournalRepository {
     return this.client.signOut();
   }
 
+  async saveLessonRecord(lessonId, studentId, values, behaviorMarks = []) {
+    if (values.isAbsent && (values.assessments ?? []).length) {
+      throw new Error('Спочатку видаліть оцінки, потім позначайте учня відсутнім.');
+    }
+    if (values.boardRefused && (values.assessments ?? []).some((assessment) => assessment.kind === 'board')) {
+      throw new Error('Спочатку видаліть оцінку за дошку, а потім позначайте відмову.');
+    }
+    const absent = Boolean(values.isAbsent);
+    const idsByCode = new Map(behaviorMarks.map((mark) => [mark.id, mark.uuid ?? mark.id]));
+    const params = {
+      p_lesson_id: lessonId,
+      p_student_id: studentId,
+      p_is_absent: absent,
+      p_homework: absent ? null : values.homework || null,
+      p_has_notebook: absent ? null : values.hasNotebook,
+      p_has_textbook: absent ? null : values.hasTextbook,
+      p_not_taking_notes: absent ? null : values.notTakingNotes,
+      p_board_refused: absent ? false : Boolean(values.boardRefused),
+      p_late_minutes: absent || values.lateMinutes === '' || values.lateMinutes == null ? null : Number(values.lateMinutes),
+      p_behavior_mark_ids: absent ? [] : (values.behavior ?? []).map((code) => idsByCode.get(code)).filter(Boolean),
+      p_exit_reasons: absent ? [] : (values.exits ?? [])
+    };
+    try {
+      return await this.client.rpc('save_lesson_record', params);
+    } catch (error) {
+      if (error?.boardConflict) throw new Error('Спочатку видаліть оцінку за дошку, а потім позначайте відмову.');
+      throw new Error('Не вдалося зберегти позначки учня. Перевірте доступ і повторіть спробу.');
+    }
+  }
+
+  async createAssessment({ lessonId, studentId, value, kind, boardRefused = false, isAbsent = false }) {
+    if (isAbsent) throw new Error('Для відсутнього учня спочатку зніміть позначку «н».');
+    if (boardRefused && kind === 'board') throw new Error('Спочатку зніміть відмову біля дошки, потім додайте оцінку за дошку.');
+    if (!Number.isInteger(Number(value)) || Number(value) < 1 || Number(value) > 12) throw new Error('Оцінка має бути від 1 до 12.');
+    try {
+      const rows = await this.client.insert('assessments', {
+        lesson_id: lessonId, student_id: studentId, value: Number(value), kind
+      });
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      if (!row) throw new Error('Не вдалося зберегти оцінку.');
+      return { id: row.id, value: Number(row.value), kind: String(row.kind) };
+    } catch (error) {
+      if (error?.boardConflict) throw new Error('Спочатку зніміть відмову біля дошки, потім додайте оцінку за дошку.');
+      if (error?.message?.startsWith('Оцінка має') || error?.message?.startsWith('Не вдалося')) throw error;
+      throw new Error('Не вдалося додати оцінку. Перевірте доступ і повторіть спробу.');
+    }
+  }
+
+  async updateAssessment({ lessonId, studentId, assessmentId, value, kind, boardRefused = false, isAbsent = false }) {
+    if (isAbsent) throw new Error('Для відсутнього учня спочатку зніміть позначку «н».');
+    if (boardRefused && kind === 'board') throw new Error('Спочатку зніміть відмову біля дошки, потім додайте оцінку за дошку.');
+    if (!Number.isInteger(Number(value)) || Number(value) < 1 || Number(value) > 12) throw new Error('Оцінка має бути від 1 до 12.');
+    try {
+      const rows = await this.client.patch('assessments', {
+        id: 'eq.' + assessmentId, lesson_id: 'eq.' + lessonId, student_id: 'eq.' + studentId
+      }, { value: Number(value), kind });
+      if (Array.isArray(rows) && rows.length === 0) throw new Error('Оцінку не знайдено.');
+    } catch (error) {
+      if (error?.boardConflict) throw new Error('Спочатку зніміть відмову біля дошки, потім додайте оцінку за дошку.');
+      if (error?.message?.startsWith('Оцінку не знайдено')) throw error;
+      throw new Error('Не вдалося змінити оцінку. Перевірте доступ і повторіть спробу.');
+    }
+  }
+
+  async deleteAssessment({ lessonId, studentId, assessmentId }) {
+    try {
+      const rows = await this.client.delete('assessments', {
+        id: 'eq.' + assessmentId, lesson_id: 'eq.' + lessonId, student_id: 'eq.' + studentId
+      });
+      if (Array.isArray(rows) && rows.length === 0) throw new Error('Оцінку не знайдено.');
+    } catch {
+      throw new Error('Не вдалося видалити оцінку. Перевірте доступ і повторіть спробу.');
+    }
+  }
+
   async getJournals() {
     const [rows, studentRows] = await Promise.all([
       this.client.get('journals', {
@@ -117,13 +192,14 @@ export class SupabaseJournalRepository {
         order: 'full_name.asc'
       }),
       this.client.get('behavior_marks', {
-        select: 'code,label',
+        select: 'id,code,label',
         is_active: 'eq.true',
         order: 'code.asc'
       })
     ]);
     const behaviorMarks = (marks ?? []).map((mark) => ({
       id: mark.code,
+      ...(mark.id ? { uuid: mark.id } : {}),
       label: mark.label
     }));
     const students = (rows ?? []).map((row) => {
