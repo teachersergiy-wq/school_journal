@@ -1,8 +1,9 @@
 import { createRepository } from './data.js';
+import { createNavigationState, journalsForClass, journalsForPair, navigateBack, navigateTo } from './navigation.js';
 
 const app = document.querySelector('#app');
 const repo = createRepository(window.SCHOOL_JOURNAL_CONFIG);
-const s = { user: null, screen: 'signin', journals: [], journal: null, lessons: [], lesson: null, windowData: null };
+const s = { user: null, screen: 'signin', nav: createNavigationState(), journals: [], journal: null, selectedClassId: null, lessons: [], lesson: null, windowData: null };
 const esc = (v) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const date = (v) =>
@@ -15,8 +16,8 @@ const assessmentKindLabels = {
   board: 'біля дошки'
 };
 
-function header(title, back = '') {
-  return `<header class="topbar">${back ? `<button class="icon-button" data-action="${esc(back)}" aria-label="Назад">←</button>` : '<span class="brand-mark">Ш</span>'}<div class="topbar-title"><span class="eyebrow">ШКІЛЬНИЙ ЖУРНАЛ</span><strong>${esc(title)}</strong></div>${s.user ? '<span class="avatar">У</span>' : ''}</header>`;
+function header(title, back = true) {
+  return `<header class="topbar">${s.user && back ? '<button class="icon-button" data-action="back" aria-label="Назад">←</button>' : '<span class="brand-mark">Ш</span>'}<div class="topbar-title"><span class="eyebrow">ШКІЛЬНИЙ ЖУРНАЛ</span><strong>${esc(title)}</strong></div>${s.user ? '<button class="icon-button home-button" data-action="home" aria-label="Головна">⌂</button>' : ''}</header>`;
 }
 
 function nav() {
@@ -31,7 +32,8 @@ function signIn(message = '') {
     try {
       s.user = await repo.signIn(f.get('email'), f.get('password'));
       s.journals = await repo.getJournals();
-      s.screen = 'journals';
+      s.nav = createNavigationState('home');
+      s.screen = 'home';
       render();
     } catch (err) {
       signIn(err.message);
@@ -39,25 +41,38 @@ function signIn(message = '') {
   });
 }
 
+function home() {
+  app.innerHTML = `${header('Головна', false)}<main class="page-content"><section class="welcome-row"><div><p class="eyebrow">НАВЧАЛЬНИЙ ПРОЦЕС</p><h1>Добрий день!</h1><p class="muted">Ваш робочий простір учителя.</p></div><div class="welcome-icon">✦</div></section><section class="journal-list"><button class="journal-card" data-action="journals"><span class="subject-icon">▤</span><span class="journal-main"><strong>Журнали</strong><span>Класи та предмети</span></span><span class="card-chevron">›</span></button></section></main>${nav()}`;
+}
+
 function journals() {
-  app.innerHTML = `${header('Мої журнали')}<main class="page-content"><section class="welcome-row"><div><p class="eyebrow">НАВЧАЛЬНИЙ ПРОЦЕС</p><h1>Добрий день!</h1><p class="muted">Оберіть клас і предмет, щоб продовжити.</p></div><div class="welcome-icon">✦</div></section><div class="section-heading"><div><h2>Мої журнали</h2><p class="muted">${s.journals.length} навчальні журнали</p></div><span class="count-pill">2026 / 2027</span></div><section class="journal-list">${s.journals
-    .map(
-      (j, i) =>
-        `<button class="journal-card" data-journal="${esc(j.id)}"><span class="subject-icon ${i ? 'violet' : ''}">${i ? '△' : '∑'}</span><span class="journal-main"><strong>${esc(j.subject)}</strong><span>${esc(j.className)} клас · ${j.studentsCount} учнів</span><small>Навчальний рік 2026–2027</small></span><span class="card-chevron">›</span></button>`
-    )
-    .join('')}</section><div class="info-banner"><span class="info-icon">i</span><p>${repo.mode === 'mock' ? 'Демонстраційний журнал. Усі учні та записи — вигадані.' : 'Дані доступні лише в межах прав поточного користувача.'}</p></div></main>${nav()}`;
-  app.querySelectorAll('[data-journal]').forEach((b) =>
-    b.addEventListener('click', async () => {
-      s.journal = s.journals.find((j) => j.id === b.dataset.journal);
-      s.lessons = await repo.getLessons(s.journal.id);
-      s.screen = 'lessons';
-      render();
-    })
-  );
+  const classes = [...new Map(s.journals.map((j) => [j.classId, j])).values()];
+  app.innerHTML = `${header('Журнали')}<main class="page-content"><div class="crumb">НАВЧАЛЬНИЙ ПРОЦЕС <span>/</span> ЖУРНАЛИ</div><div class="section-heading"><div><h1>Оберіть клас</h1><p class="muted">${classes.length} класи</p></div></div><section class="journal-list">${classes.map((j) => `<button class="journal-card" data-class="${esc(j.classId)}"><span class="subject-icon">▦</span><span class="journal-main"><strong>${esc(j.className)} клас</strong><span>${journalsForClass(s.journals, j.classId).length} предмети</span></span><span class="card-chevron">›</span></button>`).join('')}</section>${s.journals.length ? '' : '<p class="muted">Журналів поки немає.</p>'}<div class="info-banner"><span class="info-icon">i</span><p>${repo.mode === 'mock' ? 'Демонстраційний журнал. Усі учні та записи — вигадані.' : 'Дані доступні лише в межах прав поточного користувача.'}</p></div></main>${nav()}`;
+  app.querySelectorAll('[data-class]').forEach((button) => button.addEventListener('click', () => {
+    s.selectedClassId = button.dataset.class;
+    s.nav = navigateTo(s.nav, 'subjects', { classId: s.selectedClassId });
+    s.screen = 'subjects';
+    render();
+  }));
+}
+
+function subjects() {
+  const journals = journalsForClass(s.journals, s.selectedClassId);
+  const className = journals[0]?.className ?? '';
+  const subjects = [...new Map(journals.map((j) => [j.subjectId, j])).values()];
+  app.innerHTML = `${header(className + ' · Предмети')}<main class="page-content"><div class="crumb">ЖУРНАЛИ <span>/</span> ${esc(className.toUpperCase())}</div><div class="section-heading"><div><h1>Оберіть предмет</h1><p class="muted">${esc(className)} клас</p></div></div><section class="journal-list">${subjects.map((j, i) => `<button class="journal-card" data-subject="${esc(j.subjectId)}"><span class="subject-icon ${i ? 'violet' : ''}">${i ? '△' : '∑'}</span><span class="journal-main"><strong>${esc(j.subject)}</strong><span>${esc(className)} клас · ${j.studentsCount} учнів</span></span><span class="card-chevron">›</span></button>`).join('')}</section></main>${nav()}`;
+  app.querySelectorAll('[data-subject]').forEach((button) => button.addEventListener('click', async () => {
+    s.journal = journalsForPair(s.journals, s.selectedClassId, button.dataset.subject)[0] ?? null;
+    if (!s.journal) return;
+    s.lessons = await repo.getLessons(s.journal.id);
+    s.nav = navigateTo(s.nav, 'lessons', { classId: s.journal.classId, subjectId: s.journal.subjectId, journalId: s.journal.id });
+    s.screen = 'lessons';
+    render();
+  }));
 }
 
 function lessonDates() {
-  app.innerHTML = `${header(s.journal.subject + ' · ' + s.journal.className, 'journals')}<main class="page-content"><div class="crumb">МОЇ ЖУРНАЛИ <span>/</span> ${esc(s.journal.subject.toUpperCase())}</div><section class="journal-summary"><div class="subject-icon">${s.journal.subject === 'Алгебра' ? '∑' : '△'}</div><div><h1>${esc(s.journal.subject)}</h1><p>${esc(s.journal.className)} клас · ${s.journal.studentsCount} учнів</p></div><span class="year-chip">2026–27</span></section><div class="section-heading"><div><h2>Дати уроків</h2><p class="muted">Оберіть урок для перегляду</p></div><span class="count-pill">${s.lessons.length} уроків</span></div><section class="lesson-list">${s.lessons
+  app.innerHTML = `${header(s.journal.subject + ' · ' + s.journal.className)}<main class="page-content"><div class="crumb">ЖУРНАЛИ <span>/</span> ${esc(s.journal.className.toUpperCase())} <span>/</span> ${esc(s.journal.subject.toUpperCase())}</div><section class="journal-summary"><div class="subject-icon">${s.journal.subject === 'Алгебра' ? '∑' : '△'}</div><div><h1>${esc(s.journal.subject)}</h1><p>${esc(s.journal.className)} клас · ${s.journal.studentsCount} учнів</p></div><span class="year-chip">2026–27</span></section><div class="section-heading"><div><h2>Дати уроків</h2><p class="muted">Оберіть урок для перегляду</p></div><span class="count-pill">${s.lessons.length} уроків</span></div><section class="lesson-list">${s.lessons
     .map(
       (l, i) =>
         `<button class="lesson-card" data-lesson="${esc(l.id)}"><span class="date-tile"><strong>${new Date(l.date + 'T12:00:00').getDate()}</strong><small>${new Intl.DateTimeFormat('uk-UA', { month: 'short' }).format(new Date(l.date + 'T12:00:00')).replace('.', '')}</small></span><span class="lesson-main"><strong>${esc(l.topic)}</strong><span>${date(l.date)} · урок ${l.number}</span>${i === 0 ? '<small class="latest-tag">Останній запис</small>' : ''}</span><span class="card-chevron">›</span></button>`
@@ -67,6 +82,7 @@ function lessonDates() {
     b.addEventListener('click', async () => {
       s.lesson = s.lessons.find((l) => l.id === b.dataset.lesson);
       s.windowData = await repo.getLessonWindow(s.lesson.id, s.journal.id);
+      s.nav = navigateTo(s.nav, 'lesson', { lessonId: s.lesson.id, journalId: s.journal.id });
       s.screen = 'lesson';
       render();
     })
@@ -88,12 +104,14 @@ function lessonWindow() {
       return `<article class="student-row"><span class="student-number">${String(i + 1).padStart(2, '0')}</span><div class="student-content"><div class="student-name-line"><strong>${esc(st.fullName)}</strong>${r?.isAbsent ? '<span class="absence-pill">н</span>' : r ? '<span class="tiny-value">Запис є</span>' : '<span class="empty-status">—</span>'}</div><div class="student-details">${chips}</div></div></article>`;
     })
     .join('');
-  app.innerHTML = `${header('Вікно уроку', 'lessons')}<main class="page-content"><div class="crumb">${esc(s.journal.subject.toUpperCase())} <span>/</span> ${esc(s.journal.className)} <span>/</span> ${date(s.lesson.date).toUpperCase()}</div><section class="lesson-title-block"><div><p class="eyebrow">${esc(s.journal.subject)} · ${esc(s.journal.className)}</p><h1>${date(s.lesson.date)}</h1><p class="muted">${esc(s.lesson.topic)} · урок ${s.lesson.number}</p></div><span class="readonly-chip">Лише перегляд</span></section><div class="window-stats"><div><strong>${d.students.length}</strong><span>учнів у класі</span></div><div><strong>${d.students.filter((x) => x.record?.isAbsent).length}</strong><span>відсутні</span></div><div><strong>${d.students.filter((x) => x.record).length}</strong><span>заповнено</span></div></div><div class="section-heading"><div><h2>Учні та характеристики</h2><p class="muted">Позначки за цей урок</p></div><span class="readonly-tag">${repo.mode === 'mock' ? 'DEMO' : 'ЛИШЕ ПЕРЕГЛЯД'}</span></div><section class="student-list">${rows}</section><p class="readonly-note">Редагування та збереження будуть додані в наступних етапах.</p></main>${nav()}`;
+  app.innerHTML = `${header('Вікно уроку')}<main class="page-content"><div class="crumb">${esc(s.journal.subject.toUpperCase())} <span>/</span> ${esc(s.journal.className)} <span>/</span> ${date(s.lesson.date).toUpperCase()}</div><section class="lesson-title-block"><div><p class="eyebrow">${esc(s.journal.subject)} · ${esc(s.journal.className)}</p><h1>${date(s.lesson.date)}</h1><p class="muted">${esc(s.lesson.topic)} · урок ${s.lesson.number}</p></div><span class="readonly-chip">Лише перегляд</span></section><div class="window-stats"><div><strong>${d.students.length}</strong><span>учнів у класі</span></div><div><strong>${d.students.filter((x) => x.record?.isAbsent).length}</strong><span>відсутні</span></div><div><strong>${d.students.filter((x) => x.record).length}</strong><span>заповнено</span></div></div><div class="section-heading"><div><h2>Учні та характеристики</h2><p class="muted">Позначки за цей урок</p></div><span class="readonly-tag">${repo.mode === 'mock' ? 'DEMO' : 'ЛИШЕ ПЕРЕГЛЯД'}</span></div><section class="student-list">${rows}</section><p class="readonly-note">Редагування та збереження будуть додані в наступних етапах.</p></main>${nav()}`;
 }
 
 function render() {
   if (!s.user) return signIn();
+  if (s.screen === 'home') return home();
   if (s.screen === 'journals') return journals();
+  if (s.screen === 'subjects') return subjects();
   if (s.screen === 'lessons') return lessonDates();
   if (s.screen === 'lesson') return lessonWindow();
 }
@@ -102,7 +120,22 @@ document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-action]');
   if (!b) return;
   if (b.dataset.action === 'journals') {
+    s.nav = navigateTo(s.nav, 'journals');
     s.screen = 'journals';
+    render();
+  }
+  if (b.dataset.action === 'home') {
+    s.nav = createNavigationState('home');
+    s.screen = 'home';
+    render();
+  }
+  if (b.dataset.action === 'back') {
+    s.nav = navigateBack(s.nav);
+    s.screen = s.nav.current.screen;
+    if (s.screen === 'lessons') {
+      const item = s.nav.current.params;
+      s.journal = s.journals.find((journal) => journal.id === item.journalId) ?? s.journal;
+    }
     render();
   }
   if (b.dataset.action === 'lessons') {
@@ -127,7 +160,8 @@ async function restoreSavedSession() {
     if (!user) return;
     s.user = user;
     s.journals = await repo.getJournals();
-    s.screen = 'journals';
+    s.nav = createNavigationState('home');
+    s.screen = 'home';
     render();
   } catch (error) {
     signIn(error.message);

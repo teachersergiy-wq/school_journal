@@ -1,5 +1,10 @@
 # Changelog — school_journal
 
+## 2026-11-22 — T-060 journal navigation
+- Added the signed-in home stub and class → subject → journal navigation flow for mock and Supabase repositories.
+- Added persistent home and level-by-level back controls plus navigation-state tests.
+- Exposed class and subject identifiers in journal records so the selected pair resolves the corresponding journal.
+
 ## T-030 — GitHub Pages subpath, PNG icons, and continuous integration
 - Added a dependency-free subpath check that builds the app, serves it from a temporary `/school_journal/` directory, verifies response status and media types, and rejects root-relative asset URLs.
 - Added standard, maskable, and Apple touch PNG icons generated with Node.js built-in modules; kept the existing SVG icon and all earlier changelog entries.

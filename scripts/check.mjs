@@ -1,6 +1,6 @@
 import{readFile}from'node:fs/promises';
 import{spawnSync}from'node:child_process';
-const files=['src/main.js','src/data.js','src/data/supabase-client.js','src/data/supabase-repository.js','scripts/env.mjs','scripts/build.mjs','scripts/dev-server.mjs','scripts/preview-server.mjs'];
+const files=['src/main.js','src/navigation.js','src/data.js','src/data/supabase-client.js','src/data/supabase-repository.js','scripts/env.mjs','scripts/build.mjs','scripts/dev-server.mjs','scripts/preview-server.mjs'];
 for(const f of files){const r=spawnSync(process.execPath,['--check',f],{encoding:'utf8'});if(r.status!==0)throw Error(f+': '+(r.stderr||r.stdout));}
 const data=await readFile('src/data.js','utf8');
 for(const field of['not_done','hasNotebook','hasTextbook','notTakingNotes','boardRefused','behavior','exits','assessments','isAbsent'])if(!data.includes(field))throw Error('Missing lesson field: '+field);

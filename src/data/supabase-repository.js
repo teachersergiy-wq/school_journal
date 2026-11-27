@@ -56,6 +56,8 @@ export class SupabaseJournalRepository {
         : '';
       return {
         id: row.id,
+        classId: row.class_id,
+        subjectId: row.subject_id,
         subject: subject?.name ?? '',
         className,
         studentsCount: counts.get(row.class_id) ?? 0
