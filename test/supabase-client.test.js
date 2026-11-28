@@ -132,3 +132,36 @@ test('sign out posts to Auth and clears local session even if the request fails'
   assert.equal(logout.options.headers.get('Authorization'), 'Bearer old-access');
   assert.equal(storage.getItem(SESSION_STORAGE_KEY), null);
 });
+
+test('inserts through PostgREST with session headers and does not expose database error details', async () => {
+  const storage = new MemoryStorage();
+  storedSession(storage);
+  let request;
+  const client = createSupabaseClient({
+    url: 'https://example.supabase.co', anonKey: 'public-key', storage,
+    ...quietTimers,
+    fetchImpl: async (url, options) => {
+      request = { url: String(url), options };
+      return response([{ id: 'lesson-1' }], 201);
+    }
+  });
+  assert.deepEqual(await client.insert('lessons', { topic: 'Тема' }), [{ id: 'lesson-1' }]);
+  assert.equal(new URL(request.url).pathname, '/rest/v1/lessons');
+  assert.equal(request.options.method, 'POST');
+  assert.equal(request.options.headers.get('apikey'), 'public-key');
+  assert.equal(request.options.headers.get('Authorization'), 'Bearer old-access');
+  assert.equal(request.options.headers.get('Prefer'), 'return=representation');
+  assert.deepEqual(JSON.parse(request.options.body), { topic: 'Тема' });
+
+  const duplicate = createSupabaseClient({
+    url: 'https://example.supabase.co', anonKey: 'public-key', storage,
+    ...quietTimers,
+    fetchImpl: async () => response({ code: '23505', message: 'private server details' }, 409)
+  });
+  await assert.rejects(duplicate.insert('lessons', {}), (error) => {
+    assert.equal(error.code, '23505');
+    assert.match(error.message, /Не вдалося завантажити дані/);
+    assert.doesNotMatch(error.message, /private server details/);
+    return true;
+  });
+});

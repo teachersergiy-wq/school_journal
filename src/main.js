@@ -72,7 +72,7 @@ function subjects() {
 }
 
 function lessonDates() {
-  app.innerHTML = `${header(s.journal.subject + ' · ' + s.journal.className)}<main class="page-content"><div class="crumb">ЖУРНАЛИ <span>/</span> ${esc(s.journal.className.toUpperCase())} <span>/</span> ${esc(s.journal.subject.toUpperCase())}</div><section class="journal-summary"><div class="subject-icon">${s.journal.subject === 'Алгебра' ? '∑' : '△'}</div><div><h1>${esc(s.journal.subject)}</h1><p>${esc(s.journal.className)} клас · ${s.journal.studentsCount} учнів</p></div><span class="year-chip">2026–27</span></section><div class="section-heading"><div><h2>Дати уроків</h2><p class="muted">Оберіть урок для перегляду</p></div><span class="count-pill">${s.lessons.length} уроків</span></div><section class="lesson-list">${s.lessons
+  app.innerHTML = `${header(s.journal.subject + ' · ' + s.journal.className)}<main class="page-content"><div class="crumb">ЖУРНАЛИ <span>/</span> ${esc(s.journal.className.toUpperCase())} <span>/</span> ${esc(s.journal.subject.toUpperCase())}</div><section class="journal-summary"><div class="subject-icon">${s.journal.subject === 'Алгебра' ? '∑' : '△'}</div><div><h1>${esc(s.journal.subject)}</h1><p>${esc(s.journal.className)} клас · ${s.journal.studentsCount} учнів</p></div><span class="year-chip">2026–27</span></section><div class="section-heading"><div><h2>Дати уроків</h2><p class="muted">Оберіть урок для перегляду</p></div><span class="count-pill">${s.lessons.length} уроків</span></div><form id="add-lesson" class="add-lesson-form"><label>Дата<input name="date" type="date" required></label><label>Номер уроку<select name="number" required>${Array.from({ length: 10 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('')}</select></label><label>Тема<input name="topic" maxlength="300" required></label><button class="primary-button">Додати урок</button><p class="form-error" id="lesson-error" role="alert" hidden></p></form><section class="lesson-list">${s.lessons
     .map(
       (l, i) =>
         `<button class="lesson-card ${s.focusDate === l.date ? 'focused-lesson' : ''}" data-lesson="${esc(l.id)}" ${s.focusDate === l.date ? 'aria-current="date"' : ''}><span class="date-tile"><strong>${new Date(l.date + 'T12:00:00').getDate()}</strong><small>${new Intl.DateTimeFormat('uk-UA', { month: 'short' }).format(new Date(l.date + 'T12:00:00')).replace('.', '')}</small></span><span class="lesson-main"><strong>${esc(l.topic)}</strong><span>${date(l.date)} · урок ${l.number}</span>${i === 0 ? '<small class="latest-tag">Останній запис</small>' : ''}</span><span class="card-chevron">›</span></button>`
@@ -88,6 +88,25 @@ function lessonDates() {
     })
   );
   if (s.focusDate) app.querySelector('[aria-current="date"]')?.scrollIntoView?.({ block: 'center' });
+
+  const addForm = app.querySelector('#add-lesson');
+  addForm.elements.date.value = new Date().toLocaleDateString('en-CA');
+  addForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const fields = new FormData(addForm);
+    const errorBox = app.querySelector('#lesson-error');
+    errorBox.hidden = true;
+    try {
+      await repo.createLesson(s.journal.id, {
+        date: fields.get('date'), number: fields.get('number'), topic: fields.get('topic')
+      });
+      s.lessons = await repo.getLessons(s.journal.id);
+      render();
+    } catch (error) {
+      errorBox.textContent = error.message;
+      errorBox.hidden = false;
+    }
+  });
 }
 
 function lessonWindow() {

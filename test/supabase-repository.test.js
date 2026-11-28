@@ -50,3 +50,29 @@ test('maps journal, lesson, and v_lesson_window rows without replacing unknown a
   assert.equal(calls.find((call) => call.path === 'lessons').query.order, 'lesson_date.desc,lesson_number.desc');
   assert.equal(calls.find((call) => call.path === 'v_lesson_window').query.lesson_id, 'eq.lesson-1');
 });
+
+test('creates a lesson through the protected lessons endpoint and explains duplicates', async () => {
+  const requests = [];
+  const repository = new SupabaseJournalRepository({}, {
+    async insert(path, body) {
+      requests.push({ path, body });
+      if (requests.length === 1) return [{ id: 'lesson-2', ...body }];
+      const error = new Error('generic database request failure');
+      error.code = '23505';
+      throw error;
+    }
+  });
+  assert.deepEqual(await repository.createLesson('journal-1', {
+    date: '2026-11-22', number: '3', topic: '  Нова тема  '
+  }), { id: 'lesson-2', date: '2026-11-22', number: 3, topic: 'Нова тема' });
+  assert.deepEqual(requests[0], {
+    path: 'lessons',
+    body: { journal_id: 'journal-1', lesson_date: '2026-11-22', lesson_number: 3, topic: 'Нова тема' }
+  });
+  await assert.rejects(repository.createLesson('journal-1', {
+    date: '2026-11-22', number: 3, topic: 'Дубль'
+  }), /Урок із таким номером на цю дату вже існує/);
+  await assert.rejects(repository.createLesson('journal-1', {
+    date: '2026-11-22', number: 11, topic: 'Неприпустимий номер'
+  }), /номер уроку від 1 до 10/);
+});

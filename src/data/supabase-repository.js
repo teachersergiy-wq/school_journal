@@ -11,6 +11,11 @@ const toArray = (value) => {
     return [];
   }
 };
+const validateLesson = ({ date, number, topic }) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date ?? '')) || !Number.isInteger(Number(number)) || Number(number) < 1 || Number(number) > 10 || !String(topic ?? '').trim()) {
+    throw new Error('Вкажіть дату, номер уроку від 1 до 10 і тему.');
+  }
+};
 
 export class SupabaseJournalRepository {
   constructor(config = {}, client = null) {
@@ -77,6 +82,31 @@ export class SupabaseJournalRepository {
       number: Number(row.lesson_number),
       topic: row.topic ?? ''
     }));
+  }
+
+  async createLesson(journalId, { date, number, topic }) {
+    try {
+      validateLesson({ date, number, topic });
+      const rows = await this.client.insert('lessons', {
+        journal_id: journalId,
+        lesson_date: date,
+        lesson_number: Number(number),
+        topic: String(topic).trim()
+      });
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      if (!row) throw new Error('Не вдалося додати урок. Спробуйте ще раз.');
+      return {
+        id: row.id,
+        date: row.lesson_date,
+        number: Number(row.lesson_number),
+        topic: row.topic ?? ''
+      };
+    } catch (error) {
+      if (error?.code === '23505') throw new Error('Урок із таким номером на цю дату вже існує.');
+      if (error?.message?.startsWith('Вкажіть')) throw error;
+      if (error?.message?.startsWith('Не вдалося')) throw error;
+      throw new Error('Не вдалося додати урок. Перевірте дані та права доступу.');
+    }
   }
 
   async getLessonWindow(lessonId) {
