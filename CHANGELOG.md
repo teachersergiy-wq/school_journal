@@ -5,6 +5,12 @@
 - Added persistent home and level-by-level back controls plus navigation-state tests.
 - Exposed class and subject identifiers in journal records so the selected pair resolves the corresponding journal.
 
+## 2026-11-23 — T-062 touch target
+- Increased the «Журнал» button touch target to at least 44 pixels and removed the empty `:root{}` rule.
+
+## 2026-11-22 — T-062 lesson-to-journal link
+- Added a «Журнал» action to the lesson window that returns to the lesson dates for the same journal and focuses the lesson's date.
+
 ## T-030 — GitHub Pages subpath, PNG icons, and continuous integration
 - Added a dependency-free subpath check that builds the app, serves it from a temporary `/school_journal/` directory, verifies response status and media types, and rejects root-relative asset URLs.
 - Added standard, maskable, and Apple touch PNG icons generated with Node.js built-in modules; kept the existing SVG icon and all earlier changelog entries.

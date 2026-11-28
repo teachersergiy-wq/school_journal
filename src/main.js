@@ -3,7 +3,7 @@ import { createNavigationState, journalsForClass, journalsForPair, navigateBack,
 
 const app = document.querySelector('#app');
 const repo = createRepository(window.SCHOOL_JOURNAL_CONFIG);
-const s = { user: null, screen: 'signin', nav: createNavigationState(), journals: [], journal: null, selectedClassId: null, lessons: [], lesson: null, windowData: null };
+const s = { user: null, screen: 'signin', nav: createNavigationState(), journals: [], journal: null, selectedClassId: null, lessons: [], lesson: null, windowData: null, focusDate: null };
 const esc = (v) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const date = (v) =>
@@ -75,7 +75,7 @@ function lessonDates() {
   app.innerHTML = `${header(s.journal.subject + ' · ' + s.journal.className)}<main class="page-content"><div class="crumb">ЖУРНАЛИ <span>/</span> ${esc(s.journal.className.toUpperCase())} <span>/</span> ${esc(s.journal.subject.toUpperCase())}</div><section class="journal-summary"><div class="subject-icon">${s.journal.subject === 'Алгебра' ? '∑' : '△'}</div><div><h1>${esc(s.journal.subject)}</h1><p>${esc(s.journal.className)} клас · ${s.journal.studentsCount} учнів</p></div><span class="year-chip">2026–27</span></section><div class="section-heading"><div><h2>Дати уроків</h2><p class="muted">Оберіть урок для перегляду</p></div><span class="count-pill">${s.lessons.length} уроків</span></div><section class="lesson-list">${s.lessons
     .map(
       (l, i) =>
-        `<button class="lesson-card" data-lesson="${esc(l.id)}"><span class="date-tile"><strong>${new Date(l.date + 'T12:00:00').getDate()}</strong><small>${new Intl.DateTimeFormat('uk-UA', { month: 'short' }).format(new Date(l.date + 'T12:00:00')).replace('.', '')}</small></span><span class="lesson-main"><strong>${esc(l.topic)}</strong><span>${date(l.date)} · урок ${l.number}</span>${i === 0 ? '<small class="latest-tag">Останній запис</small>' : ''}</span><span class="card-chevron">›</span></button>`
+        `<button class="lesson-card ${s.focusDate === l.date ? 'focused-lesson' : ''}" data-lesson="${esc(l.id)}" ${s.focusDate === l.date ? 'aria-current="date"' : ''}><span class="date-tile"><strong>${new Date(l.date + 'T12:00:00').getDate()}</strong><small>${new Intl.DateTimeFormat('uk-UA', { month: 'short' }).format(new Date(l.date + 'T12:00:00')).replace('.', '')}</small></span><span class="lesson-main"><strong>${esc(l.topic)}</strong><span>${date(l.date)} · урок ${l.number}</span>${i === 0 ? '<small class="latest-tag">Останній запис</small>' : ''}</span><span class="card-chevron">›</span></button>`
     )
     .join('')}</section></main>${nav()}`;
   app.querySelectorAll('[data-lesson]').forEach((b) =>
@@ -87,6 +87,7 @@ function lessonDates() {
       render();
     })
   );
+  if (s.focusDate) app.querySelector('[aria-current="date"]')?.scrollIntoView?.({ block: 'center' });
 }
 
 function lessonWindow() {
@@ -104,7 +105,8 @@ function lessonWindow() {
       return `<article class="student-row"><span class="student-number">${String(i + 1).padStart(2, '0')}</span><div class="student-content"><div class="student-name-line"><strong>${esc(st.fullName)}</strong>${r?.isAbsent ? '<span class="absence-pill">н</span>' : r ? '<span class="tiny-value">Запис є</span>' : '<span class="empty-status">—</span>'}</div><div class="student-details">${chips}</div></div></article>`;
     })
     .join('');
-  app.innerHTML = `${header('Вікно уроку')}<main class="page-content"><div class="crumb">${esc(s.journal.subject.toUpperCase())} <span>/</span> ${esc(s.journal.className)} <span>/</span> ${date(s.lesson.date).toUpperCase()}</div><section class="lesson-title-block"><div><p class="eyebrow">${esc(s.journal.subject)} · ${esc(s.journal.className)}</p><h1>${date(s.lesson.date)}</h1><p class="muted">${esc(s.lesson.topic)} · урок ${s.lesson.number}</p></div><span class="readonly-chip">Лише перегляд</span></section><div class="window-stats"><div><strong>${d.students.length}</strong><span>учнів у класі</span></div><div><strong>${d.students.filter((x) => x.record?.isAbsent).length}</strong><span>відсутні</span></div><div><strong>${d.students.filter((x) => x.record).length}</strong><span>заповнено</span></div></div><div class="section-heading"><div><h2>Учні та характеристики</h2><p class="muted">Позначки за цей урок</p></div><span class="readonly-tag">${repo.mode === 'mock' ? 'DEMO' : 'ЛИШЕ ПЕРЕГЛЯД'}</span></div><section class="student-list">${rows}</section><p class="readonly-note">Редагування та збереження будуть додані в наступних етапах.</p></main>${nav()}`;
+  app.innerHTML = `${header('Вікно уроку', 'lessons')}<main class="page-content"><div class="crumb">${esc(s.journal.subject.toUpperCase())} <span>/</span> ${esc(s.journal.className)} <span>/</span> ${date(s.lesson.date).toUpperCase()}</div><section class="lesson-title-block"><div><p class="eyebrow">${esc(s.journal.subject)} · ${esc(s.journal.className)}</p><h1>${date(s.lesson.date)}</h1><p class="muted">${esc(s.lesson.topic)} · урок ${s.lesson.number}</p></div><div class="lesson-window-actions"><button class="secondary-button" data-action="journal">Журнал</button><span class="readonly-chip">Лише перегляд</span></div></section><div class="window-stats"><div><strong>${d.students.length}</strong><span>учнів у класі</span></div><div><strong>${d.students.filter((x) => x.record?.isAbsent).length}</strong><span>відсутні</span></div><div><strong>${d.students.filter((x) => x.record).length}</strong><span>заповнено</span></div></div><div class="section-heading"><div><h2>Учні та характеристики</h2><p class="muted">Позначки за цей урок</p></div><span class="readonly-tag">${repo.mode === 'mock' ? 'DEMO' : 'ЛИШЕ ПЕРЕГЛЯД'}</span></div><section class="student-list">${rows}</section><p class="readonly-note">Редагування та збереження будуть додані в наступних етапах.</p></main>${nav()}`;
+  app.innerHTML = `${header('Вікно уроку', 'lessons')}<main class="page-content"><div class="crumb">${esc(s.journal.subject.toUpperCase())} <span>/</span> ${esc(s.journal.className)} <span>/</span> ${date(s.lesson.date).toUpperCase()}</div><section class="lesson-title-block"><div><p class="eyebrow">${esc(s.journal.subject)} · ${esc(s.journal.className)}</p><h1>${date(s.lesson.date)}</h1><p class="muted">${esc(s.lesson.topic)} · урок ${s.lesson.number}</p></div><div class="lesson-window-actions"><button class="secondary-button" data-action="journal">Журнал</button><span class="readonly-chip">Лише перегляд</span></div></section><div class="window-stats"><div><strong>${d.students.length}</strong><span>учнів у класі</span></div><div><strong>${d.students.filter((x) => x.record?.isAbsent).length}</strong><span>відсутні</span></div><div><strong>${d.students.filter((x) => x.record).length}</strong><span>заповнено</span></div></div><div class="section-heading"><div><h2>Учні та характеристики</h2><p class="muted">Позначки за цей урок</p></div><span class="readonly-tag">${repo.mode === 'mock' ? 'DEMO' : 'ЛИШЕ ПЕРЕГЛЯД'}</span></div><section class="student-list">${rows}</section><p class="readonly-note">Редагування та збереження будуть додані в наступних етапах.</p></main>${nav()}`;
 }
 
 function render() {
@@ -139,6 +141,17 @@ document.addEventListener('click', (e) => {
     render();
   }
   if (b.dataset.action === 'lessons') {
+    s.screen = 'lessons';
+    render();
+  }
+  if (b.dataset.action === 'journal') {
+    s.focusDate = s.lesson?.date ?? null;
+    s.nav = navigateTo(s.nav, 'lessons', {
+      classId: s.journal.classId,
+      subjectId: s.journal.subjectId,
+      journalId: s.journal.id,
+      focusDate: s.focusDate
+    });
     s.screen = 'lessons';
     render();
   }
