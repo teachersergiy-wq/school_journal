@@ -1,6 +1,6 @@
--- T-024 synthetic demo journal data
+-- T-024 / T-069 synthetic demo journal data
 -- ONLY fictional names («Учень NN»). Idempotent for pure-demo journals.
--- Requires: migrations (incl. independent/control kinds), starter seed, profiles.role = 'owner'.
+-- Requires: migrations (incl. in_journal), starter seed, profiles.role = 'owner'.
 -- Topics prefixed «[ДЕМО]». Aborts if journal already has non-demo lessons.
 
 do $$
@@ -15,6 +15,7 @@ declare
   v_mark_disrupts uuid;
   v_mark_active uuid;
   v_mark_helps uuid;
+  v_aid uuid;
   d date;
   i int;
   student_rec record;
@@ -57,7 +58,7 @@ begin
 
   if v_non_demo > 0 then
     raise exception
-      'T-024 seed_demo: journal already has % non-demo lesson(s). Refusing to modify real data. Use a clean journal or remove non-demo lessons first.',
+      'T-024 seed_demo: journal already has % non-demo lesson(s). Refusing to modify real data.',
       v_non_demo;
   end if;
 
@@ -78,8 +79,6 @@ begin
       insert into public.lessons (journal_id, lesson_date, lesson_number, topic)
       values (v_journal, d, 1, v_topic)
       returning id into v_lesson;
-    else
-      null;
     end if;
 
     for student_rec in
@@ -115,7 +114,6 @@ begin
           insert into public.lesson_exits (record_id, reason)
           values (v_record, 'toilet');
         elsif student_rec.rn = 3 then
-          -- board refusal only (no kind=board assessment)
           insert into public.lesson_records (
             lesson_id, student_id, is_absent, homework, has_notebook, has_textbook,
             not_taking_notes, board_refused, late_minutes
@@ -149,7 +147,6 @@ begin
         end if;
       end if;
 
-      -- current (rn 3–6, lesson 1) — skip if would conflict; rn=3 has refusal not board grade
       if student_rec.rn between 3 and 6 and i = 1 then
         if not exists (
           select 1 from public.assessments a
@@ -170,7 +167,6 @@ begin
         end if;
       end if;
 
-      -- board grade only rn=4 lesson 1 (not rn=3 refusal)
       if student_rec.rn = 4 and i = 1 then
         if not exists (
           select 1 from public.assessments a
@@ -179,9 +175,14 @@ begin
           insert into public.assessments (lesson_id, student_id, value, kind)
           values (v_lesson, v_student, 9, 'board');
         end if;
+        -- T-069: multiple grades; choose board for the journal cell
+        select id into v_aid from public.assessments
+        where lesson_id = v_lesson and student_id = v_student and kind = 'board' limit 1;
+        if v_aid is not null then
+          perform public.set_journal_mark(v_aid);
+        end if;
       end if;
 
-      -- independent (rn=5, lesson 1)
       if student_rec.rn = 5 and i = 1 then
         if not exists (
           select 1 from public.assessments a
@@ -190,9 +191,10 @@ begin
           insert into public.assessments (lesson_id, student_id, value, kind)
           values (v_lesson, v_student, 8, 'independent');
         end if;
+        -- T-069: multiple grades but none selected for journal cell
+        perform public.clear_journal_mark(v_lesson, v_student);
       end if;
 
-      -- control (rn=6, lesson 1)
       if student_rec.rn = 6 and i = 1 then
         if not exists (
           select 1 from public.assessments a
@@ -201,10 +203,15 @@ begin
           insert into public.assessments (lesson_id, student_id, value, kind)
           values (v_lesson, v_student, 10, 'control');
         end if;
+        select id into v_aid from public.assessments
+        where lesson_id = v_lesson and student_id = v_student and kind = 'control' limit 1;
+        if v_aid is not null then
+          perform public.set_journal_mark(v_aid);
+        end if;
       end if;
 
     end loop;
   end loop;
 
-  raise notice 'T-024 seed_demo OK: journal %, 5 [ДЕМО] lessons (kinds incl. independent/control)', v_journal;
+  raise notice 'T-024/T-069 seed_demo OK: journal %, in_journal samples set', v_journal;
 end $$;

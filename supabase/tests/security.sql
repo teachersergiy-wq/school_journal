@@ -1,4 +1,4 @@
--- Security checks (T-023A + T-006) — run as service role / SQL Editor after apply
+-- Security checks (T-023A + T-006 + T-069) — service role / SQL Editor after apply
 
 -- 1. anon has no SELECT on public tables/views
 select c.relname, has_table_privilege('anon', c.oid, 'select') as anon_select
@@ -21,16 +21,15 @@ select tablename, policyname, roles
 from pg_policies
 where schemaname = 'public'
 order by 1, 2;
--- expect: all roles include authenticated only
 
--- 4. Helpers live in private with pinned search_path
+-- 4. Helpers
 select n.nspname, p.proname, p.proconfig
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
 where p.proname in (
   'is_owner', 'is_journal_teacher', 'is_class_teacher', 'current_app_role',
   'handle_new_user', 'set_updated_at', 'prevent_profile_privilege_escalation',
-  'enforce_board_exclusivity'
+  'enforce_board_exclusivity', 'set_journal_mark', 'clear_journal_mark'
 )
 order by 1, 2;
 
@@ -46,7 +45,8 @@ where n.nspname = 'public'
 select has_table_privilege('authenticated', 'public.profiles', 'delete') as auth_can_delete_profiles;
 -- expect: false
 
--- 7. public functions: anon EXECUTE none; authenticated EXECUTE only save_lesson_record
+-- 7. public functions: anon EXECUTE none;
+--    authenticated EXECUTE only: save_lesson_record, set_journal_mark, clear_journal_mark
 select p.proname,
        has_function_privilege('anon', p.oid, 'execute') as anon_exec,
        has_function_privilege('authenticated', p.oid, 'execute') as auth_exec
@@ -56,7 +56,7 @@ where n.nspname = 'public'
   and p.prokind = 'f'
 order by 1;
 -- expect: anon_exec all false;
---         auth_exec true only for save_lesson_record (and not for enforce_board_exclusivity / triggers)
+--         auth_exec true only for save_lesson_record, set_journal_mark, clear_journal_mark
 
 -- ============================================================
 -- T-006 keep-alive (ops schema)
@@ -88,7 +88,17 @@ select
   has_function_privilege('authenticated', 'ops.keepalive()', 'execute') as auth_keepalive_exec;
 -- expect: false, false
 
--- 11. anon can execute ops.keepalive() and gets an integer
+-- 11. The only function anon may execute is ops.keepalive (not any public fn)
+select n.nspname, p.proname,
+       has_function_privilege('anon', p.oid, 'execute') as anon_exec
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where has_function_privilege('anon', p.oid, 'execute')
+  and n.nspname in ('public', 'private', 'ops')
+order by 1, 2;
+-- expect: only ops.keepalive
+
+-- 12. anon calling ops.keepalive() returns an integer
 begin;
   set local role anon;
   select ops.keepalive() as keepalive_result;
