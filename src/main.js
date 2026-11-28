@@ -111,23 +111,136 @@ function lessonDates() {
 
 function lessonWindow() {
   const d = s.windowData;
-  const hw = { done: 'виконано', partial: 'частково', not_done: 'не виконано' };
-  const exit = { toilet: 'туалет', phone: 'телефон', other: 'інше' };
-  const rows = d.students
-    .map((st, i) => {
-      const r = st.record;
-      let chips = r?.isAbsent
-        ? '<span class="detail-chip absent">Відсутній · н</span>'
-        : r
-          ? `<span class="detail-chip">Д/з: ${hw[r.homework] ?? '—'}</span>${r.lateMinutes ? `<span class="detail-chip">Запізнення ${r.lateMinutes} хв</span>` : ''}${(r.assessments ?? []).map((a) => `<span class="detail-chip grade">${a.value} балів · ${esc(assessmentKindLabels[a.kind] ?? a.kind)}</span>`).join('')}${(r.behavior ?? []).map((id) => `<span class="detail-chip behavior">${esc(d.behaviorMarks.find((m) => m.id === id)?.label ?? id)}</span>`).join('')}${r.hasNotebook === false ? '<span class="detail-chip">Без зошита</span>' : ''}${r.hasTextbook === false ? '<span class="detail-chip">Без підручника</span>' : ''}${r.notTakingNotes ? '<span class="detail-chip">Не записує</span>' : ''}${r.boardRefused ? '<span class="detail-chip">Відмова біля дошки</span>' : ''}${(r.exits ?? []).map((x) => `<span class="detail-chip">Вихід: ${exit[x.reason]}</span>`).join('')}`
-          : '<span class="detail-chip muted-chip">Ще не позначено</span>';
-      return `<article class="student-row"><span class="student-number">${String(i + 1).padStart(2, '0')}</span><div class="student-content"><div class="student-name-line"><strong>${esc(st.fullName)}</strong>${r?.isAbsent ? '<span class="absence-pill">н</span>' : r ? '<span class="tiny-value">Запис є</span>' : '<span class="empty-status">—</span>'}</div><div class="student-details">${chips}</div></div></article>`;
-    })
-    .join('');
-  app.innerHTML = `${header('Вікно уроку', 'lessons')}<main class="page-content"><div class="crumb">${esc(s.journal.subject.toUpperCase())} <span>/</span> ${esc(s.journal.className)} <span>/</span> ${date(s.lesson.date).toUpperCase()}</div><section class="lesson-title-block"><div><p class="eyebrow">${esc(s.journal.subject)} · ${esc(s.journal.className)}</p><h1>${date(s.lesson.date)}</h1><p class="muted">${esc(s.lesson.topic)} · урок ${s.lesson.number}</p></div><div class="lesson-window-actions"><button class="secondary-button" data-action="journal">Журнал</button><span class="readonly-chip">Лише перегляд</span></div></section><div class="window-stats"><div><strong>${d.students.length}</strong><span>учнів у класі</span></div><div><strong>${d.students.filter((x) => x.record?.isAbsent).length}</strong><span>відсутні</span></div><div><strong>${d.students.filter((x) => x.record).length}</strong><span>заповнено</span></div></div><div class="section-heading"><div><h2>Учні та характеристики</h2><p class="muted">Позначки за цей урок</p></div><span class="readonly-tag">${repo.mode === 'mock' ? 'DEMO' : 'ЛИШЕ ПЕРЕГЛЯД'}</span></div><section class="student-list">${rows}</section><p class="readonly-note">Редагування та збереження будуть додані в наступних етапах.</p></main>${nav()}`;
-  app.innerHTML = `${header('Вікно уроку', 'lessons')}<main class="page-content"><div class="crumb">${esc(s.journal.subject.toUpperCase())} <span>/</span> ${esc(s.journal.className)} <span>/</span> ${date(s.lesson.date).toUpperCase()}</div><section class="lesson-title-block"><div><p class="eyebrow">${esc(s.journal.subject)} · ${esc(s.journal.className)}</p><h1>${date(s.lesson.date)}</h1><p class="muted">${esc(s.lesson.topic)} · урок ${s.lesson.number}</p></div><div class="lesson-window-actions"><button class="secondary-button" data-action="journal">Журнал</button><span class="readonly-chip">Лише перегляд</span></div></section><div class="window-stats"><div><strong>${d.students.length}</strong><span>учнів у класі</span></div><div><strong>${d.students.filter((x) => x.record?.isAbsent).length}</strong><span>відсутні</span></div><div><strong>${d.students.filter((x) => x.record).length}</strong><span>заповнено</span></div></div><div class="section-heading"><div><h2>Учні та характеристики</h2><p class="muted">Позначки за цей урок</p></div><span class="readonly-tag">${repo.mode === 'mock' ? 'DEMO' : 'ЛИШЕ ПЕРЕГЛЯД'}</span></div><section class="student-list">${rows}</section><p class="readonly-note">Редагування та збереження будуть додані в наступних етапах.</p></main>${nav()}`;
-}
+  const boolSelect = (name, value, label) => `<label>${label}<select name="${name}"><option value="" ${value == null ? 'selected' : ''}>Не позначено</option><option value="true" ${value === true ? 'selected' : ''}>Так</option><option value="false" ${value === false ? 'selected' : ''}>Ні</option></select></label>`;
+  const kindOptions = (kind) => ['current', 'independent', 'control', 'thematic', 'board'].map((value) => `<option value="${value}" ${kind === value ? 'selected' : ''}>${assessmentKindLabels[value]}</option>`).join('') + (kind && !assessmentKindLabels[kind] ? `<option value="${esc(kind)}" selected>Невідомий вид: ${esc(kind)}</option>` : '');
+  const reasonLabels = { toilet: 'Туалет', phone: 'Телефон', other: 'Інше' };
+  const exitRows = (exits) => (exits.length ? exits : ['']).map((exit) => {
+    const reason = typeof exit === 'string' ? exit : exit.reason;
+    return `<div class="exit-row"><select name="exits"><option value="" ${!reason ? 'selected' : ''}>Не позначено</option>${Object.entries(reasonLabels).map(([value, label]) => `<option value="${value}" ${reason === value ? 'selected' : ''}>${label}</option>`).join('')}</select><button type="button" class="text-button" data-remove-exit aria-label="Прибрати вихід">−</button></div>`;
+  }).join('');
+  const rows = d.students.map((st, i) => {
+    const r = st.record ?? {};
+    const assessments = r.assessments ?? [];
+    return `<article class="student-editor" data-student-card="${esc(st.id)}"><div class="student-name-line"><span class="student-number">${String(i + 1).padStart(2, '0')}</span><strong>${esc(st.fullName)}</strong>${r.isAbsent ? '<span class="absence-pill">н</span>' : ''}</div><form class="record-form" data-record-form data-form-key="record:${esc(st.id)}" data-student-id="${esc(st.id)}"><label class="check-label"><input type="checkbox" name="isAbsent" ${r.isAbsent ? 'checked' : ''}> Відсутній («н»)</label><div class="record-fields"><label>Домашнє завдання<select name="homework"><option value="" ${!r.homework ? 'selected' : ''}>Не позначено</option><option value="done" ${r.homework === 'done' ? 'selected' : ''}>Виконано</option><option value="partial" ${r.homework === 'partial' ? 'selected' : ''}>Частково</option><option value="not_done" ${r.homework === 'not_done' ? 'selected' : ''}>Не виконано</option></select></label>${boolSelect('hasNotebook', r.hasNotebook, 'Зошит')}${boolSelect('hasTextbook', r.hasTextbook, 'Підручник')}${boolSelect('notTakingNotes', r.notTakingNotes, 'Ведення записів')}<label class="check-label"><input type="checkbox" name="boardRefused" ${r.boardRefused ? 'checked' : ''}> Відмова біля дошки</label><label>Запізнення, хв<input type="number" name="lateMinutes" min="1" max="90" value="${r.lateMinutes ?? ''}"></label></div><fieldset><legend>Поведінка</legend><div class="choice-list">${d.behaviorMarks.map((mark) => `<label class="check-label"><input type="checkbox" name="behavior" value="${esc(mark.id)}" ${(r.behavior ?? []).includes(mark.id) ? 'checked' : ''}> ${esc(mark.label)}</label>`).join('')}</div></fieldset><fieldset><legend>Виходи з уроку</legend><div class="exit-list" data-exit-list>${exitRows(r.exits ?? [])}</div><button type="button" class="secondary-button add-exit-button" data-add-exit>Додати вихід</button></fieldset><p class="form-error" data-error hidden role="alert"></p><button class="primary-button">Зберегти позначки</button></form><section class="assessment-editor"><h3>Оцінки</h3>${assessments.map((a) => `<form class="assessment-row" data-assessment-form data-form-key="assessment:${esc(st.id)}:${esc(a.id)}" data-assessment-id="${esc(a.id)}" data-student-id="${esc(st.id)}"><input type="number" name="value" min="1" max="12" required value="${Number(a.value)}" aria-label="Оцінка"><select name="kind" aria-label="Вид оцінки">${kindOptions(a.kind)}</select><button class="secondary-button">Зберегти</button><button type="button" class="text-button" data-delete-assessment="${esc(a.id)}" data-student-id="${esc(st.id)}">Видалити</button></form>`).join('')}<form class="assessment-row" data-new-assessment data-form-key="new-assessment:${esc(st.id)}" data-student-id="${esc(st.id)}"><input type="number" name="value" min="1" max="12" required placeholder="1–12" aria-label="Нова оцінка"><select name="kind" aria-label="Вид оцінки">${kindOptions('current')}</select><button class="secondary-button">Додати оцінку</button></form><p class="form-error" data-assessment-error hidden role="alert"></p></section></article>`;
+  }).join('');
+  app.innerHTML = `${header('Вікно уроку', 'lessons')}<main class="page-content"><div class="crumb">${esc(s.journal.subject.toUpperCase())} <span>/</span> ${esc(s.journal.className)} <span>/</span> ${date(s.lesson.date).toUpperCase()}</div><section class="lesson-title-block"><div><p class="eyebrow">${esc(s.journal.subject)} · ${esc(s.journal.className)}</p><h1>${date(s.lesson.date)}</h1><p class="muted">${esc(s.lesson.topic)} · урок ${s.lesson.number}</p></div><div class="lesson-window-actions"><button class="secondary-button" data-action="journal">Журнал</button></div></section><div class="window-stats"><div><strong>${d.students.length}</strong><span>учнів у класі</span></div><div><strong>${d.students.filter((x) => x.record?.isAbsent).length}</strong><span>відсутні</span></div><div><strong>${d.students.filter((x) => x.record).length}</strong><span>заповнено</span></div></div><div class="section-heading"><div><h2>Учні та характеристики</h2><p class="muted">Позначки за цей урок</p></div><span class="readonly-tag">${repo.mode === 'mock' ? 'DEMO' : 'SUPABASE'}</span></div><section class="student-list">${rows}</section></main>${nav()}`;
 
+  const captureDrafts = () => [...app.querySelectorAll('form[data-form-key]')].map((form) => {
+    const occurrences = new Map();
+    const fields = [...form.elements].filter((field) => field.name).map((field) => {
+      const index = occurrences.get(field.name) ?? 0;
+      occurrences.set(field.name, index + 1);
+      return { name: field.name, index, value: field.value, checked: field.checked };
+    });
+    return { key: form.dataset.formKey, fields };
+  });
+  const restoreDrafts = (drafts, skipKey) => {
+    for (const draft of drafts) {
+      if (draft.key === skipKey) continue;
+      const form = [...app.querySelectorAll('form[data-form-key]')].find((item) => item.dataset.formKey === draft.key);
+      if (!form) continue;
+      const desiredExitCount = draft.fields.filter((field) => field.name === 'exits').length;
+      const exitList = form.querySelector('[data-exit-list]');
+      if (exitList) {
+        while (exitList.querySelectorAll('select[name="exits"]').length > desiredExitCount) exitList.lastElementChild?.remove();
+        while (exitList.querySelectorAll('select[name="exits"]').length < desiredExitCount) {
+          const row = document.createElement('div');
+          row.className = 'exit-row';
+          row.innerHTML = '<select name="exits"><option value="" selected>Не позначено</option><option value="toilet">Туалет</option><option value="phone">Телефон</option><option value="other">Інше</option></select><button type="button" class="text-button" data-remove-exit aria-label="Прибрати вихід">−</button>';
+          exitList.append(row);
+        }
+      }
+      for (const saved of draft.fields) {
+        const field = [...form.elements].filter((item) => item.name === saved.name)[saved.index];
+        if (!field) continue;
+        if (field.type === 'checkbox' || field.type === 'radio') field.checked = saved.checked;
+        else field.value = saved.value;
+      }
+    }
+  };
+  const refresh = async (skipKey) => {
+    const drafts = captureDrafts();
+    const scrollY = window.scrollY;
+    const anchor = [...app.querySelectorAll('[data-student-card]')].find((card) => card.getBoundingClientRect().bottom > 0);
+    const anchorId = anchor?.dataset.studentCard;
+    const anchorTop = anchor?.getBoundingClientRect().top;
+    s.windowData = await repo.getLessonWindow(s.lesson.id, s.journal.id);
+    render();
+    restoreDrafts(drafts, skipKey);
+    if (anchorId) {
+      const nextAnchor = [...app.querySelectorAll('[data-student-card]')].find((card) => card.dataset.studentCard === anchorId);
+      const nextTop = nextAnchor?.getBoundingClientRect().top;
+      window.scrollTo(0, scrollY + (Number.isFinite(nextTop) && Number.isFinite(anchorTop) ? nextTop - anchorTop : 0));
+    } else window.scrollTo(0, scrollY);
+  };
+  app.querySelectorAll('[data-record-form]').forEach((form) => {
+    form.querySelector('[data-add-exit]').addEventListener('click', () => {
+      const row = document.createElement('div');
+      row.className = 'exit-row';
+      row.innerHTML = `<select name="exits"><option value="" selected>Не позначено</option><option value="toilet">Туалет</option><option value="phone">Телефон</option><option value="other">Інше</option></select><button type="button" class="text-button" data-remove-exit aria-label="Прибрати вихід">−</button>`;
+      form.querySelector('[data-exit-list]').append(row);
+    });
+    form.querySelector('[data-exit-list]').addEventListener('click', (event) => {
+      if (event.target.closest('[data-remove-exit]')) event.target.closest('.exit-row')?.remove();
+    });
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const getBool = (name) => data.get(name) === '' ? null : data.get(name) === 'true';
+      const student = d.students.find((item) => item.id === form.dataset.studentId);
+      const values = {
+        isAbsent: data.has('isAbsent'), homework: data.get('homework') || null,
+        hasNotebook: getBool('hasNotebook'), hasTextbook: getBool('hasTextbook'),
+        notTakingNotes: getBool('notTakingNotes'), boardRefused: data.has('boardRefused'),
+        lateMinutes: data.get('lateMinutes') || null, behavior: data.getAll('behavior'),
+        exits: data.getAll('exits').filter(Boolean), assessments: student.record?.assessments ?? []
+      };
+      const errorBox = form.querySelector('[data-error]');
+      errorBox.hidden = true;
+      try {
+        await repo.saveLessonRecord(s.lesson.id, student.id, values, d.behaviorMarks);
+        await refresh(form.dataset.formKey);
+      } catch (error) {
+        errorBox.textContent = error.message;
+        errorBox.hidden = false;
+      }
+    });
+  });
+  app.querySelectorAll('[data-assessment-form], [data-new-assessment]').forEach((form) => form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const student = d.students.find((item) => item.id === form.dataset.studentId);
+    const existing = form.dataset.assessmentId;
+    const errorBox = form.closest('.assessment-editor').querySelector('[data-assessment-error]');
+    errorBox.hidden = true;
+    const values = {
+      lessonId: s.lesson.id, studentId: student.id, value: data.get('value'), kind: data.get('kind'),
+      boardRefused: Boolean(student.record?.boardRefused), isAbsent: Boolean(student.record?.isAbsent)
+    };
+    try {
+      if (existing) await repo.updateAssessment({ ...values, assessmentId: existing });
+      else await repo.createAssessment(values);
+      await refresh(form.dataset.formKey);
+    } catch (error) {
+      errorBox.textContent = error.message;
+      errorBox.hidden = false;
+    }
+  }));
+  app.querySelectorAll('[data-delete-assessment]').forEach((button) => button.addEventListener('click', async () => {
+    if (!confirm('Видалити цю оцінку?')) return;
+    const errorBox = button.closest('.assessment-editor').querySelector('[data-assessment-error]');
+    errorBox.hidden = true;
+    try {
+      await repo.deleteAssessment({
+        lessonId: s.lesson.id, studentId: button.dataset.studentId, assessmentId: button.dataset.deleteAssessment
+      });
+      await refresh(`assessment:${button.dataset.studentId}:${button.dataset.deleteAssessment}`);
+    } catch (error) {
+      errorBox.textContent = error.message;
+      errorBox.hidden = false;
+    }
+  }));
+}
 function render() {
   if (!s.user) return signIn();
   if (s.screen === 'home') return home();

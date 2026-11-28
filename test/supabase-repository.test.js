@@ -76,3 +76,34 @@ test('creates a lesson through the protected lessons endpoint and explains dupli
     date: '2026-11-22', number: 11, topic: 'Неприпустимий номер'
   }), /номер уроку від 1 до 10/);
 });
+
+test('saves lesson marks through named RPC arguments and manages assessments directly', async () => {
+  const calls = [];
+  const repository = new SupabaseJournalRepository({}, {
+    async rpc(name, params) { calls.push({ method: 'rpc', name, params }); return { id: 'record-1' }; },
+    async insert(path, body) { calls.push({ method: 'insert', path, body }); return [{ id: 'assessment-1', ...body }]; },
+    async patch(path, query, body) { calls.push({ method: 'patch', path, query, body }); return [{ id: 'assessment-1' }]; },
+    async delete(path, query) { calls.push({ method: 'delete', path, query }); return null; }
+  });
+  await repository.saveLessonRecord('lesson-1', 'student-1', {
+    isAbsent: false, homework: 'partial', hasNotebook: true, hasTextbook: false,
+    notTakingNotes: false, boardRefused: false, lateMinutes: 7,
+    behavior: ['talks'], exits: ['toilet'], assessments: []
+  }, [{ id: 'talks', uuid: 'behavior-uuid', label: 'Розмовляє' }]);
+  assert.deepEqual(calls[0], { method: 'rpc', name: 'save_lesson_record', params: {
+    p_lesson_id: 'lesson-1', p_student_id: 'student-1', p_is_absent: false,
+    p_homework: 'partial', p_has_notebook: true, p_has_textbook: false,
+    p_not_taking_notes: false, p_board_refused: false, p_late_minutes: 7,
+    p_behavior_mark_ids: ['behavior-uuid'], p_exit_reasons: ['toilet']
+  } });
+  await repository.createAssessment({ lessonId: 'lesson-1', studentId: 'student-1', value: 8, kind: 'independent' });
+  await repository.updateAssessment({ lessonId: 'lesson-1', studentId: 'student-1', assessmentId: 'assessment-1', value: 9, kind: 'control' });
+  await repository.deleteAssessment({ lessonId: 'lesson-1', studentId: 'student-1', assessmentId: 'assessment-1' });
+  assert.deepEqual(calls.slice(1).map((call) => call.method), ['insert', 'patch', 'delete']);
+  assert.equal(calls[1].path, 'assessments');
+  assert.equal(calls[1].body.kind, 'independent');
+  assert.deepEqual(calls[2].body, { value: 9, kind: 'control' });
+  await assert.rejects(repository.saveLessonRecord('lesson-1', 'student-1', {
+    isAbsent: false, boardRefused: true, assessments: [{ kind: 'board' }]
+  }), /Спочатку видаліть оцінку за дошку/);
+});

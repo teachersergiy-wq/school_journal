@@ -18,6 +18,15 @@
 - Added a date, lesson number (1–10), and topic form to the journal's lesson dates.
 - Added RLS-protected lesson insertion with a Ukrainian duplicate lesson message; mock lessons update immediately and remain date-sorted.
 
+## 2026-11-23 — T-032 contract and editor follow-up
+- Unified assessment create, update, and delete repository calls around object parameters; added a shared mock/Supabase contract test that also checks record save.
+- Preserved unsaved fields and scroll anchoring across student-window refreshes, and allowed repeated exit reasons as the data contract has no unique constraint on them.
+- Kept the confirmed absence/assessment exclusion in the application.
+
+## 2026-11-22 — T-032 editable lesson window
+- Added lesson-record editing through the existing `save_lesson_record` RPC and direct assessment insert, update, and delete calls.
+- Added Ukrainian feedback for board-assessment/refusal conflicts and dependency-free fetch-mock coverage.
+
 ## T-030 — GitHub Pages subpath, PNG icons, and continuous integration
 - Added a dependency-free subpath check that builds the app, serves it from a temporary `/school_journal/` directory, verifies response status and media types, and rejects root-relative asset URLs.
 - Added standard, maskable, and Apple touch PNG icons generated with Node.js built-in modules; kept the existing SVG icon and all earlier changelog entries.

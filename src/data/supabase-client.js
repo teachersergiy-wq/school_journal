@@ -206,6 +206,10 @@ export function createSupabaseClient({
       if (typeof result.payload?.code === 'string' && /^[0-9A-Z]{5}$/.test(result.payload.code)) {
         error.code = result.payload.code;
       }
+      if (/^board: cannot have assessment kind=board when board_refused is true$|^board: cannot set board_refused when a board assessment exists$/.test(result.payload?.message ?? '')) {
+        error.boardConflict = true;
+      }
+
       throw error;
     }
     return result.payload;
@@ -282,6 +286,35 @@ export function createSupabaseClient({
       return requestAuthorized(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' },
+        body: JSON.stringify(body)
+      });
+    },
+
+    async patch(path, query = {}, body) {
+      const endpoint = new URL('/rest/v1/' + String(path).replace(/^\/+/, ''), baseUrl);
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined && value !== null) endpoint.searchParams.set(key, String(value));
+      }
+      return requestAuthorized(endpoint, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' },
+        body: JSON.stringify(body)
+      });
+    },
+
+    async delete(path, query = {}) {
+      const endpoint = new URL('/rest/v1/' + String(path).replace(/^\/+/, ''), baseUrl);
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined && value !== null) endpoint.searchParams.set(key, String(value));
+      }
+      return requestAuthorized(endpoint, { method: 'DELETE', headers: { Prefer: 'return=representation' } });
+    },
+
+    async rpc(name, body) {
+      const endpoint = new URL('/rest/v1/rpc/' + encodeURIComponent(String(name)), baseUrl);
+      return requestAuthorized(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
     }

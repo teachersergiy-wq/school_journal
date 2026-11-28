@@ -165,3 +165,41 @@ test('inserts through PostgREST with session headers and does not expose databas
     return true;
   });
 });
+
+test('calls RPC, assessment update, and delete through authenticated PostgREST requests', async () => {
+  const storage = new MemoryStorage();
+  storedSession(storage);
+  const calls = [];
+  const client = createSupabaseClient({
+    url: 'https://example.supabase.co', anonKey: 'public-key', storage,
+    ...quietTimers,
+    fetchImpl: async (url, options) => {
+      calls.push({ url: String(url), options });
+      return response(options.method === 'DELETE' ? null : [{ id: 'assessment-1' }], options.method === 'DELETE' ? 204 : 200);
+    }
+  });
+  await client.rpc('save_lesson_record', { p_lesson_id: 'lesson-1' });
+  await client.patch('assessments', { id: 'eq.assessment-1' }, { value: 10, kind: 'control' });
+  await client.delete('assessments', { id: 'eq.assessment-1' });
+  assert.equal(new URL(calls[0].url).pathname, '/rest/v1/rpc/save_lesson_record');
+  assert.equal(calls[0].options.method, 'POST');
+  assert.equal(calls[1].options.method, 'PATCH');
+  assert.equal(new URL(calls[1].url).searchParams.get('id'), 'eq.assessment-1');
+  assert.equal(calls[2].options.method, 'DELETE');
+  assert.ok(calls.every(({ options }) => options.headers.get('Authorization') === 'Bearer old-access'));
+});
+
+test('marks only the known board exclusion trigger without exposing database text', async () => {
+  const storage = new MemoryStorage();
+  storedSession(storage);
+  const client = createSupabaseClient({
+    url: 'https://example.supabase.co', anonKey: 'public-key', storage,
+    ...quietTimers,
+    fetchImpl: async () => response({ code: 'P0001', message: 'board: cannot set board_refused when a board assessment exists' }, 400)
+  });
+  await assert.rejects(client.rpc('save_lesson_record', {}), (error) => {
+    assert.equal(error.boardConflict, true);
+    assert.doesNotMatch(error.message, /board:/);
+    return true;
+  });
+});
